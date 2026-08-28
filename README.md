@@ -4,6 +4,11 @@ A high-performance, cross-platform desktop PDF viewer, mosaic/blackout redaction
 
 Fully supports **Windows, macOS, and Linux**.
 
+## TODO
+ 
+- [ ] 모자이크로 가려도 OCR에서 선택이 가능하다. 가능하지 않게 수정해야 하다.
+- [ ] 앱 로고에 CF 라고 적혀있는데 그것도 수정이 필요, 앱이름도 수정이 필요하다.
+
 ---
 
 ## Key Features
