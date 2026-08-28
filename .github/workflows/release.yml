@@ -52,6 +52,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: "--no-warnings"
         with:
           tagName: v__VERSION__
           releaseName: 'Cool Fermi PDF Studio v__VERSION__'
