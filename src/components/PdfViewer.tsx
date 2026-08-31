@@ -104,7 +104,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
           <div>
             <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">열린 PDF 문서가 없습니다</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              PDF 파일을 선택하여 고화질 뷰어와 간편한 마우스 드래그 모자이크/가림 기능을 사용해보세요.
+              PDF 파일을 선택하여 고화질 뷰어와 간편한 모자이크/가림 기능을 사용해보세요.
             </p>
           </div>
           <button

@@ -341,7 +341,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
               </span>
             </h2>
             <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-              마우스 드래그로 순서 변경 • 페이지 추가/삭제/회전 • 원스톱 병합 및 분할 내보내기
+              페이지 추가/삭제/회전/병합 및 분할 내보내기
             </p>
           </div>
         </div>

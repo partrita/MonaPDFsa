@@ -145,9 +145,8 @@ export const RedactionOverlay: React.FC<RedactionOverlayProps> = ({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       style={{ width: `${viewportWidth}px`, height: `${viewportHeight}px` }}
-      className={`absolute inset-0 pointer-events-auto ${
-        isInteractive ? 'cursor-crosshair' : 'cursor-default'
-      }`}
+      className={`absolute inset-0 pointer-events-auto ${isInteractive ? 'cursor-crosshair' : 'cursor-default'
+        }`}
     >
       {/* 현재 페이지의 가림 처리 영역 렌더링 */}
       {redactions.map((r) => {

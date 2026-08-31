@@ -8,33 +8,13 @@ Fully supports **Windows, macOS, and Linux**.
 
 ---
 
-## TODO (완료 상태)
- 
-- [x] **모자이크로 가려도 OCR에서 선택이 가능하다. 가능하지 않게 수정해야 하다.**
-  - ✅ **해결 완료**: `pdf/redact.rs`에서 페이지의 `/Contents` 스트림을 디코딩 및 구문 분석하여 가림 영역(Bounding Box) 내부의 텍스트 연산자(`BT`, `Tj`, `TJ`, `'`, `"`, `ET`)와 어노테이션(`/Annots`)을 완전히 제거/치환(Sanitize)하여 내보냅니다. 이제 가려진 영역의 텍스트는 클립보드 복사, 검색, OCR 판독이 물리적으로 불가능합니다.
-- [x] **앱 로고에 CF 라고 적혀있는데 그것도 수정이 필요, 앱이름도 수정이 필요하다.**
-  - ✅ **해결 완료**: "CF (Cool Fermi)" 표기를 **"MonaPDFsa"**로 전면 교체하였습니다.
-- [x] **프로그램 설치시 아이콘이 기본 tauri 아이콘이다, MonaPDFsa에 알맞게 모나리사 비슷한 아이콘을 만들어서 수정해줘.**
-  - ✅ **해결 완료**: 모나리자 실루엣을 모티브로 한 고해상도 앱 아이콘 세트(`32x32`, `128x128`, `128x128@2x`, `icon.png`, `icon.ico`, `icon.icns`, `Square*.png`, `favicon`)를 제작하여 전 플랫폼 번들에 적용하였습니다.
-- [x] **MacOS에서 설치시 다음 오류가 발생한다.**
-  - [x] *“MonaPDFsa” is damaged and can’t be opened. You should move it to the Trash...*
-  - ✅ **해결 완료**: macOS 게이트키퍼(Gatekeeper)의 미서명/미공증 앱 격리 속성(`com.apple.quarantine`) 해제 가이드라인을 본 문서 하단 및 번들 설정에 추가하였습니다. (터미널에서 `xattr -cr /Applications/MonaPDFsa.app` 실행)
-- [x] **MacOS에서 사용해보면 모자이크 처리해도 실제 위치보다 작은 곳에 모자이크가 처리되는 버그가 있다.**
-  - ✅ **해결 완료**: macOS Retina(High-DPI, `devicePixelRatio >= 2`) 디스플레이에서 캔버스 픽셀 버퍼 배율과 72 DPI PDF 포인트 좌표 변환 오차를 정밀 보정하여, 화면에서 드래그한 영역과 실제 PDF 출력 모자이크가 1:1로 일치하도록 수정하였습니다.
-- [x] **PDF를 나누고 합치고 추가하고 이동시키는 기능은 하나의 뷰에서 실행되어서 마우스 드래그로 쉽게 사용되어야해.**
-  - ✅ **해결 완료**: **"페이지 관리"** 탭을 통해 여러 PDF를 불러와 썸네일 그리드에서 마우스 드래그로 페이지 순서 변경, 삭제, 90° 회전, 분할 기준점(✂️) 설정, 병합 내보내기를 한 화면에서 원스톱으로 처리할 수 있습니다.
-- [x] **기능을 테스트하는 코드를 작성해서 빌드전에 테스트할 수 있게 해줘.**
-  - ✅ **해결 완료**: Rust 백엔드 핵심 엔진 단위 테스트(`src-tauri/src/pdf/mod.rs`) 및 사전 빌드 프론트엔드/로직 검증 테스트(`tests/monapdfsa.test.mjs`)를 구축하였으며, `npm test` 및 `npm run build` 시 자동으로 사전 테스트가 실행됩니다.
-
----
-
 ## 🍏 macOS 설치 및 "손상됨" 오류 해결 가이드
 
 Apple 개발자 유료 인증서로 공증(Notarization)되지 않은 앱을 인터넷에서 다운로드하여 설치할 경우, macOS Gatekeeper가 보안 격리 플래그(`com.apple.quarantine`)를 설정하여 아래와 같은 경고창을 표시합니다:
 
 > **“MonaPDFsa” is damaged and can’t be opened. You should move it to the Trash.**
 
-### 해결 방법 (1초 해결)
+### 해결 방법
 터미널(Terminal) 앱을 열고 아래 명령어를 실행하면 즉시 정상 실행됩니다:
 
 ```bash
@@ -51,14 +31,14 @@ xattr -d com.apple.quarantine MonaPDFsa.dmg
 
 ### 📁 통합 페이지 관리 (Page Organizer)
 
-| 기능                        | 설명                                                               |  상태  |
-| :-------------------------- | :----------------------------------------------------------------- | :----: |
-| **마우스 드래그 순서 변경** | 썸네일 카드를 마우스로 끌어다 놓아 페이지 순서를 자유롭게 재배치   | ✅ 완료 |
-| **다중 PDF 추가/통합**      | 여러 PDF 문서를 한 작업공간에 불러와 임의 순서로 조립              | ✅ 완료 |
-| **페이지 회전 (Rotate)**    | 시계/반시계 방향으로 개별 또는 전체 페이지 90° 회전                | ✅ 완료 |
-| **페이지 삭제 (Delete)**    | 불필요한 페이지를 원클릭으로 제거                                  | ✅ 완료 |
-| **분할 지점 설정 (Split)**  | 카드 하단 ✂️ 아이콘으로 분할 구분점을 지정하여 다중 PDF로 일괄 분할 | ✅ 완료 |
-| **원스톱 병합 내보내기**    | 재배치된 상태 그대로 단일 PDF 문서로 즉시 저장                     | ✅ 완료 |
+| 기능                       | 설명                                                               |  상태  |
+| :------------------------- | :----------------------------------------------------------------- | :----: |
+| **순서 변경**              | 썸네일 카드로 페이지 순서를 자유롭게 재배치                        | ✅ 완료 |
+| **다중 PDF 추가/통합**     | 여러 PDF 문서를 한 작업공간에 불러와 임의 순서로 조립              | ✅ 완료 |
+| **페이지 회전 (Rotate)**   | 시계/반시계 방향으로 개별 또는 전체 페이지 90° 회전                | ✅ 완료 |
+| **페이지 삭제 (Delete)**   | 불필요한 페이지를 원클릭으로 제거                                  | ✅ 완료 |
+| **분할 지점 설정 (Split)** | 카드 하단 ✂️ 아이콘으로 분할 구분점을 지정하여 다중 PDF로 일괄 분할 | ✅ 완료 |
+| **원스톱 병합 내보내기**   | 재배치된 상태 그대로 단일 PDF 문서로 즉시 저장                     | ✅ 완료 |
 
 ### 🔲 영구 가림 처리 (Redaction & Text Sanitization)
 
@@ -73,52 +53,44 @@ xattr -d com.apple.quarantine MonaPDFsa.dmg
 
 ## 🧪 테스트 및 빌드
 
-### 사전 테스트 실행
+### 단위/통합 테스트 실행
 ```bash
-# 전체 단위 및 통합 테스트 실행 (10개 항목)
+# 프론트엔드 및 무결성 테스트 (12개 항목)
 npm test
+
+# Rust 코어 엔진 테스트
+npm run test:rust
 ```
 
-### 프로덕션 빌드 (테스트 자동 선행 실행)
+### 프로덕션 번들 빌드
 ```bash
 npm run build
 ```
 
 ### 로컬 데스크톱 앱 실행 및 패키징
-
-#### Windows
-```powershell
-cargo tauri dev
-cargo tauri build
-```
-
-#### macOS
 ```bash
+# 개발 모드 실행
 cargo tauri dev
-cargo tauri build
-```
 
-#### Linux
-```bash
-cargo tauri dev
-cargo tauri build --bundles deb
+# 플랫폼별 배포 바이너리 빌드
+cargo tauri build
 ```
 
 ---
 
 ## 🚀 GitHub Actions CI / Release 파이프라인
 
-본 저장소는 **“빌드는 매 커밋마다 자동 검증, 릴리스는 사람이 원하는 시점에 수동 생성”** 패턴을 따릅니다:
+본 저장소는 **“빌드는 매 커밋마다 자동 검증 후 릴리즈 생성”** 패턴을 따릅니다:
 
 1. **자동 CI 빌드 및 아티팩트 저장 ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))**:
    - `main` 브랜치로 `push`되거나 `pull_request` 생성 시 자동으로 실행됩니다.
    - 단위 테스트(`npm test`)를 수행하고 Windows, macOS, Linux 번들을 빌드하여 **GitHub Actions Artifacts**로 업로드합니다.
-2. **수동 릴리스 발행 ([`.github/workflows/release.yml`](.github/workflows/release.yml))**:
-   - GitHub 저장소 **Actions** 탭에서 `Manual Release` 워크플로우를 선택하고 **Run workflow** 버튼을 클릭하여 원하는 시점에 릴리스를 생성할 수 있습니다.
-   - 버전(예: `0.1.0`), 드래프트(Draft) 여부, 프리릴리스(Prerelease) 옵션을 선택할 수 있으며, Git 버전 태그(`v*`) 푸시 시에도 자동으로 트리거됩니다.
+2. **릴리스 발행 ([`.github/workflows/release.yml`](.github/workflows/release.yml))**:
+   - GitHub Actions를 통해 Windows, macOS, Linux 크로스 플랫폼 바이너리 설치 파일(`.dmg`, `.deb`, `.appimage`, `.exe`/`.msi`)이 생성되어 GitHub Releases에 배포됩니다.
+   - 버전 태그(`v*`) 푸시 또는 Actions 탭의 수동 트리거(workflow_dispatch)로도 자유롭게 실행할 수 있습니다.
 
 ---
 
 ## Sample PDF
-프로젝트 루트에 테스트용 3페이지 문서 [`sample_document.pdf`](sample_document.pdf)가 포함되어 있습니다.  
+`examples/` 폴더에 테스트용 3페이지 문서 [`sample_document.pdf`](examples/sample_document.pdf) 및 가림 처리 예제 [`sample_document_redacted.pdf`](examples/sample_document_redacted.pdf)가 포함되어 있습니다.  
 앱 실행 후 **PDF 열기**로 해당 파일을 열어 모자이크 가림(OCR 방지 검증) 및 페이지 관리 기능을 즉시 체험할 수 있습니다.
