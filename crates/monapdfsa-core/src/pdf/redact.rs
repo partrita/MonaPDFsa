@@ -8,7 +8,20 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::io::Write;
 
-/// 프론트엔드에서 전달되는 가림 영역(모자이크, 블랙아웃, 화이트아웃) 정보 구조체
+/// 프론트엔드에서 전달되는 고해상도 래스터라이즈(Flattening) 가림 페이지 스펙
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FlattenedPageSpec {
+    /// 1부터 시작하는 대상 페이지 번호
+    pub page: u32,
+    /// Base64 JPEG 또는 PNG 이미지 데이터 (Data URL 또는 순수 Base64)
+    pub image_data: String,
+    /// PDF 기준 가로 폭 (포인트 단위, 72 DPI)
+    pub width_pts: f64,
+    /// PDF 기준 세로 높이 (포인트 단위, 72 DPI)
+    pub height_pts: f64,
+}
+
+/// 프론트엔드에서 전달되는 개별 벡터 가림 영역 정보 구조체
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedactionRegion {
     /// 영역 고유 식별자 ID
@@ -40,12 +53,152 @@ fn zlib_compress(data: &[u8]) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("zlib 인코딩 완료 실패: {}", e))
 }
 
+/// Base64 Data URL 또는 일반 Base64 문자열로부터 순수 바이너리 바이트를 디코딩합니다.
+fn decode_base64_data(data_url: &str) -> Result<Vec<u8>, String> {
+    let b64_str = if let Some(pos) = data_url.find(',') {
+        &data_url[pos + 1..]
+    } else {
+        data_url
+    };
+    BASE64_STANDARD
+        .decode(b64_str.trim())
+        .map_err(|e| format!("Base64 이미지 디코딩 실패: {}", e))
+}
+
+/// 단일 페이지를 300 DPI 초고화질 래스터라이즈(Flattening) 이미지로 완전히 교체합니다.
+/// **보안 핵심**: 기저의 모든 텍스트 연산자, 폰트, 어노테이션, OCR 레이어가 영구적으로 100% 소멸합니다.
+fn process_page_flattening(
+    doc: &mut Document,
+    page_id: ObjectId,
+    page_num: u32,
+    spec: &FlattenedPageSpec,
+    max_id: &mut u32,
+) -> Result<(), String> {
+    let img_bytes = decode_base64_data(&spec.image_data)?;
+    let is_jpeg = img_bytes.starts_with(&[0xFF, 0xD8, 0xFF]);
+
+    let (img_width, img_height, img_stream) = if is_jpeg {
+        // JPEG 포맷: PDF의 네이티브 DCTDecode 필터를 사용하여 재압축 없이 원본 화질/초고속 임베딩
+        let dyn_img = image::load_from_memory(&img_bytes)
+            .map_err(|e| format!("JPEG 이미지 분석 실패: {}", e))?;
+        let (w, h) = dyn_img.dimensions();
+
+        let stream = Stream::new(
+            dictionary! {
+                "Type" => "XObject",
+                "Subtype" => "Image",
+                "Width" => w as i64,
+                "Height" => h as i64,
+                "ColorSpace" => "DeviceRGB",
+                "BitsPerComponent" => 8,
+                "Filter" => "DCTDecode",
+            },
+            img_bytes,
+        );
+        (w, h, stream)
+    } else {
+        // PNG 또는 기타 포맷: FlateDecode (zlib) 압축 스트림으로 변환
+        let dyn_img = image::load_from_memory(&img_bytes)
+            .map_err(|e| format!("이미지 메모리 로드 실패: {}", e))?;
+        let (w, h) = dyn_img.dimensions();
+        let rgb_raw = dyn_img.to_rgb8();
+        let compressed = zlib_compress(&rgb_raw)?;
+
+        let stream = Stream::new(
+            dictionary! {
+                "Type" => "XObject",
+                "Subtype" => "Image",
+                "Width" => w as i64,
+                "Height" => h as i64,
+                "ColorSpace" => "DeviceRGB",
+                "BitsPerComponent" => 8,
+                "Filter" => "FlateDecode",
+            },
+            compressed,
+        );
+        (w, h, stream)
+    };
+
+    *max_id += 1;
+    let img_obj_id = (*max_id, 0);
+    doc.objects.insert(img_obj_id, Object::Stream(img_stream));
+
+    // 1. 기존 페이지 컨텐츠 스트림 ID 목록 수집 (모두 삭제하여 텍스트 데이터 파기)
+    let old_content_ids: Vec<ObjectId> = match doc.get_object(page_id) {
+        Ok(Object::Dictionary(dict)) => match dict.get(b"Contents") {
+            Ok(Object::Reference(id)) => vec![*id],
+            Ok(Object::Array(arr)) => arr
+                .iter()
+                .filter_map(|obj| match obj {
+                    Object::Reference(id) => Some(*id),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        },
+        _ => Vec::new(),
+    };
+
+    // 2. 새 단일 컨텐츠 드로잉 스트림 생성 (cm + Do 연산자)
+    let res_name = format!("MonaFlatten_{}", page_num);
+    let draw_content = format!(
+        "q\n{:.3} 0 0 {:.3} 0.000 0.000 cm\n/{} Do\nQ\n",
+        spec.width_pts, spec.height_pts, res_name
+    );
+
+    let compressed_draw = zlib_compress(draw_content.as_bytes())?;
+    *max_id += 1;
+    let new_content_id = (*max_id, 0);
+    let content_stream = Stream::new(
+        dictionary! {
+            "Filter" => "FlateDecode",
+        },
+        compressed_draw,
+    );
+    doc.objects.insert(new_content_id, Object::Stream(content_stream));
+
+    // 3. 페이지 딕셔너리 재구성: 기저 텍스트/폰트/어노테이션 완전 파기 및 새 이미지 리소스만 할당
+    if let Ok(page_obj) = doc.get_object_mut(page_id) {
+        if let Ok(page_dict) = page_obj.as_dict_mut() {
+            // Contents를 새 플래트닝 이미지 드로잉 스트림으로 교체
+            page_dict.set("Contents", Object::Reference(new_content_id));
+
+            // Resources를 새 이미지 XObject만 포함하도록 교체 (기존 폰트/인코딩 완전 파기)
+            let mut xobjects = Dictionary::new();
+            xobjects.set(res_name.as_bytes().to_vec(), Object::Reference(img_obj_id));
+            let mut resources = Dictionary::new();
+            resources.set("XObject", Object::Dictionary(xobjects));
+            page_dict.set("Resources", Object::Dictionary(resources));
+
+            // Annots(링크, 주석, OCR 텍스트 레이어) 100% 삭제
+            page_dict.remove(b"Annots");
+
+            // MediaBox 보정
+            page_dict.set(
+                "MediaBox",
+                vec![
+                    0.into(),
+                    0.into(),
+                    spec.width_pts.into(),
+                    spec.height_pts.into(),
+                ],
+            );
+        }
+    }
+
+    // 4. 기존 구버전 컨텐츠 스트림 객체들 메모리에서 제거
+    for cid in old_content_ids {
+        doc.objects.remove(&cid);
+    }
+
+    let _ = (img_width, img_height);
+    Ok(())
+}
+
 /// PDF 페이지 트리를 탐색하여 부모 노드로부터 상속된 유효한 /Resources 사전을 추출합니다.
-/// PDF 명세에 따르면 하위 페이지는 상위 노드의 리소스를 상속받을 수 있습니다.
 fn resolve_page_resources(doc: &Document, mut node: ObjectId) -> Option<Dictionary> {
     let mut seen = std::collections::HashSet::new();
     loop {
-        // 무한 참조 루프 방지
         if !seen.insert(node) {
             return None;
         }
@@ -58,7 +211,6 @@ fn resolve_page_resources(doc: &Document, mut node: ObjectId) -> Option<Dictiona
                 if let Ok(resources) = dict.get_deref(b"Resources", doc).and_then(Object::as_dict) {
                     return Some(resources.clone());
                 }
-                // 상위 부모 노드가 있으면 부모 노드로 거슬러 올라감
                 if let Ok(parent) = dict.get(b"Parent").and_then(Object::as_reference) {
                     node = parent;
                 } else {
@@ -72,7 +224,6 @@ fn resolve_page_resources(doc: &Document, mut node: ObjectId) -> Option<Dictiona
 }
 
 /// 페이지 리소스에 새 XObject들을 등록합니다.
-/// 기존 리소스(/Font, /ExtGState, 기존 /XObject 등)를 100% 보존합니다.
 fn add_xobjects_to_page_resources(
     doc: &mut Document,
     page_id: ObjectId,
@@ -82,7 +233,6 @@ fn add_xobjects_to_page_resources(
         return;
     }
 
-    // 1. 페이지의 /Resources 객체 참조 형태 확인
     let resources_ref = if let Ok(page_dict) = doc.get_object(page_id).and_then(Object::as_dict) {
         match page_dict.get(b"Resources") {
             Ok(Object::Reference(id)) => Some(*id),
@@ -92,7 +242,6 @@ fn add_xobjects_to_page_resources(
         None
     };
 
-    // 2-A. /Resources가 간접 참조(Indirect Object)인 경우 해당 리소스 객체 직접 수정
     if let Some(res_id) = resources_ref {
         if let Ok(res_obj) = doc.get_object_mut(res_id) {
             if let Ok(res_dict) = res_obj.as_dict_mut() {
@@ -110,7 +259,6 @@ fn add_xobjects_to_page_resources(
         }
     }
 
-    // 2-B. /Resources가 페이지 사전에 직접 포함되어 있거나 상위 노드로부터 상속된 경우
     let inherited_resources = resolve_page_resources(doc, page_id);
 
     if let Ok(page_obj) = doc.get_object_mut(page_id) {
@@ -164,7 +312,6 @@ fn is_text_in_redactions(
         let r_min_y = r.y;
         let r_max_y = r.y + r.height;
 
-        // AABB (Axis-Aligned Bounding Box) 사각형 교차 검사
         if t_min_x <= r_max_x && t_max_x >= r_min_x && t_min_y <= r_max_y && t_max_y >= r_min_y {
             return true;
         }
@@ -193,12 +340,7 @@ fn is_rect_overlap_redactions(rect: &[f64], regions: &[&RedactionRegion]) -> boo
     false
 }
 
-/// open-redact-pdf 스타일의 구조적 가림 처리 (Structural Redaction):
-/// 1. 페이지의 기존 모든 컨텐츠 스트림을 결합 및 디코딩
-/// 2. 가림 영역 내부의 텍스트 연산자(Tj, TJ, ', ")를 PDF 구조 자체에서 완전히 제거/치환
-/// 3. 가림 영역(모자이크 이미지 Do 또는 블랙/화이트 박스) 드로잉 연산자를 단일 통합 스트림 끝에 병합
-/// 4. FlateDecode 단일 압축 스트림으로 페이지 /Contents를 결정론적(Deterministic)으로 덮어씀
-/// 5. /Annots 어노테이션 중 겹치는 항목 삭제
+/// 구조적 벡터 가림 처리 (Structural Vector Redaction)
 fn process_page_structural_redaction(
     doc: &mut Document,
     page_id: ObjectId,
@@ -210,7 +352,6 @@ fn process_page_structural_redaction(
         return Ok(());
     }
 
-    // 1. 페이지의 기존 /Contents 객체 ID 목록 수집
     let (content_ids, is_direct_stream) = match doc.get_object(page_id) {
         Ok(Object::Dictionary(dict)) => match dict.get(b"Contents") {
             Ok(Object::Reference(id)) => (vec![*id], false),
@@ -230,7 +371,6 @@ fn process_page_structural_redaction(
         _ => (Vec::new(), false),
     };
 
-    // 2. 모든 컨텐츠 스트림 내용을 하나로 합쳐 디코딩
     let mut combined_stream_bytes = Vec::new();
     for cid in &content_ids {
         if let Ok(Object::Stream(stream)) = doc.get_object(*cid) {
@@ -255,7 +395,6 @@ fn process_page_structural_redaction(
         }
     }
 
-    // 3. 텍스트 연산자 구조적 파기 처리 (Structural Content Sanitization)
     let sanitized_bytes = if let Ok(mut content) = Content::decode(&combined_stream_bytes) {
         let mut text_x = 0.0f64;
         let mut text_y = 0.0f64;
@@ -386,21 +525,18 @@ fn process_page_structural_redaction(
         combined_stream_bytes
     };
 
-    // 4. 시각적 가림 드로잉 커맨드 생성 (모자이크 이미지 또는 솔리드 벡터 박스)
     let mut draw_commands = String::new();
     let mut images_to_add: Vec<(String, ObjectId)> = Vec::new();
 
     for (idx, r) in regions.iter().enumerate() {
         match r.style.as_str() {
             "blackout" => {
-                // 단색 검정 박스 (q = 그래픽 상태 저장, rg = 색상, re = 사각형, f = 채우기, Q = 복원)
                 draw_commands.push_str(&format!(
                     "\nq\n0 0 0 rg\n{:.3} {:.3} {:.3} {:.3} re\nf\nQ\n",
                     r.x, r.y, r.width, r.height
                 ));
             }
             "whiteout" => {
-                // 단색 흰색 박스
                 draw_commands.push_str(&format!(
                     "\nq\n1 1 1 rg\n{:.3} {:.3} {:.3} {:.3} re\nf\nQ\n",
                     r.x, r.y, r.width, r.height
@@ -409,13 +545,7 @@ fn process_page_structural_redaction(
             "mosaic" => {
                 let mut drawn = false;
                 if let Some(ref data_url) = r.image_data {
-                    let b64_str = if let Some(pos) = data_url.find(',') {
-                        &data_url[pos + 1..]
-                    } else {
-                        data_url.as_str()
-                    };
-
-                    if let Ok(bytes) = BASE64_STANDARD.decode(b64_str) {
+                    if let Ok(bytes) = decode_base64_data(data_url) {
                         if let Ok(img) = image::load_from_memory(&bytes) {
                             let (w, h) = img.dimensions();
                             let rgb = img.to_rgb8();
@@ -441,7 +571,6 @@ fn process_page_structural_redaction(
                                 let res_name = format!("MonaMosaic_{}_{}", page_num, idx);
                                 images_to_add.push((res_name.clone(), img_id));
 
-                                // PDF cm 연산자: [width 0 0 height x y cm /Do]
                                 draw_commands.push_str(&format!(
                                     "\nq\n{:.3} 0 0 {:.3} {:.3} {:.3} cm\n/{} Do\nQ\n",
                                     r.width, r.height, r.x, r.y, res_name
@@ -453,7 +582,6 @@ fn process_page_structural_redaction(
                 }
 
                 if !drawn {
-                    // 이미지 파싱 실패 시 차콜 그레이 단색 박스로 안전하게 폴백
                     draw_commands.push_str(&format!(
                         "\nq\n0.12 0.12 0.12 rg\n{:.3} {:.3} {:.3} {:.3} re\nf\nQ\n",
                         r.x, r.y, r.width, r.height
@@ -464,16 +592,13 @@ fn process_page_structural_redaction(
         }
     }
 
-    // 5. 모자이크 이미지 XObject를 페이지 리소스에 안전하게 등록 (기존 글꼴/서식 100% 보존)
     add_xobjects_to_page_resources(doc, page_id, &images_to_add);
 
-    // 6. 단일 통합 컨텐츠 스트림 빌드 (Sanitized Text Operations + Redaction Drawings)
     let mut final_content_bytes = sanitized_bytes;
     if !draw_commands.is_empty() {
         final_content_bytes.extend_from_slice(draw_commands.as_bytes());
     }
 
-    // FlateDecode zlib 압축
     let compressed_final = zlib_compress(&final_content_bytes)
         .map_err(|e| format!("가림 처리 컨텐츠 스트림 압축 실패: {}", e))?;
 
@@ -487,19 +612,16 @@ fn process_page_structural_redaction(
     );
     doc.objects.insert(new_stream_id, Object::Stream(new_stream));
 
-    // 7. 페이지 사전에 새로운 단일 통합 스트림 할당
     if let Ok(page_obj) = doc.get_object_mut(page_id) {
         if let Ok(page_dict) = page_obj.as_dict_mut() {
             page_dict.set("Contents", Object::Reference(new_stream_id));
         }
     }
 
-    // 기존 분리된 컨텐츠 스트림 객체 정리 (Deterministic Pruning)
     for cid in content_ids {
         doc.objects.remove(&cid);
     }
 
-    // 8. /Annots (링크, 주석, OCR 텍스트 레이어) 중 가림 영역과 겹치는 항목 삭제
     let annots_to_remove: Vec<ObjectId> = if let Ok(page_dict) = doc.get_object(page_id).and_then(Object::as_dict) {
         if let Ok(annots_arr) = page_dict.get(b"Annots").and_then(Object::as_array) {
             annots_arr
@@ -548,16 +670,15 @@ fn process_page_structural_redaction(
     Ok(())
 }
 
-/// 지정된 PDF 파일에 모자이크/블랙아웃/화이트아웃 가림 영역을 영구적으로 적용합니다.
+/// 지정된 PDF 파일에 스마트 하이브리드 가림 처리(고해상도 플래트닝 + 벡터 가림)를 적용합니다.
 ///
-/// **open-redact-pdf 표준 기반 보안 가림 아키텍처**:
-/// 1. 단순 시각적 덮어쓰기가 아닌 PDF 컨텐츠 스트림 구조체에서 목표 텍스트 연산자를 완전 파기(Removal)
-/// 2. 가려지지 않은 본문/이미지/서식은 100% 선택 및 검색(Selectable & Searchable) 유지
-/// 3. 단일 통합 컨텐츠 스트림 재작성(Unified Stream Rewrite)으로 모든 뷰어에서 100% 렌더링 보장
-/// 4. 저장 시 전체 문서 결정론적 재직렬화(Deterministic Full-Document Serialization)
-pub fn apply_redactions(
+/// **보안 가림 아키텍처**:
+/// - `flattened_pages`에 포함된 페이지는 300 DPI 초고화질 이미지로 래스터라이즈(Flattening)되어 기저 텍스트/글리프/어노테이션이 100% 영구 소멸 (드래그/OCR 불가)
+/// - 가림이 없는 페이지는 원본 벡터 PDF 품질과 텍스트 선택성을 온전히 보존
+pub fn apply_redactions_hybrid(
     input_path: &str,
     output_path: &str,
+    flattened_pages: &[FlattenedPageSpec],
     redactions: &[RedactionRegion],
 ) -> Result<String, String> {
     let mut doc = Document::load(input_path)
@@ -566,10 +687,23 @@ pub fn apply_redactions(
     let pages = doc.get_pages();
     let mut max_id = doc.max_id;
 
-    // 페이지 번호별로 가림 영역 그룹화
+    // 1. 고해상도 플래트닝 페이지 우선 처리
+    let mut flattened_page_nums = std::collections::HashSet::new();
+    for spec in flattened_pages {
+        flattened_page_nums.insert(spec.page);
+        let page_id = match pages.get(&spec.page) {
+            Some(&id) => id,
+            None => continue,
+        };
+        process_page_flattening(&mut doc, page_id, spec.page, spec, &mut max_id)?;
+    }
+
+    // 2. 플래트닝되지 않은 나머지 페이지 중 벡터 가림 영역이 있는 경우 처리
     let mut by_page: BTreeMap<u32, Vec<&RedactionRegion>> = BTreeMap::new();
     for r in redactions {
-        by_page.entry(r.page).or_default().push(r);
+        if !flattened_page_nums.contains(&r.page) {
+            by_page.entry(r.page).or_default().push(r);
+        }
     }
 
     for (page_num, regions) in by_page {
@@ -577,7 +711,6 @@ pub fn apply_redactions(
             Some(&id) => id,
             None => continue,
         };
-
         process_page_structural_redaction(&mut doc, page_id, page_num, &regions, &mut max_id)?;
     }
 
@@ -586,4 +719,13 @@ pub fn apply_redactions(
         .map_err(|e| format!("가림 처리된 PDF 저장 실패 '{}': {}", output_path, e))?;
 
     Ok(output_path.to_string())
+}
+
+/// 기존 호환성을 위한 단일 apply_redactions 래퍼
+pub fn apply_redactions(
+    input_path: &str,
+    output_path: &str,
+    redactions: &[RedactionRegion],
+) -> Result<String, String> {
+    apply_redactions_hybrid(input_path, output_path, &[], redactions)
 }

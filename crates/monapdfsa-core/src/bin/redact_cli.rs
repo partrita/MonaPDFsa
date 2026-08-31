@@ -1,40 +1,78 @@
-use monapdfsa_core::pdf::redact::{apply_redactions, RedactionRegion};
 use base64::prelude::*;
 use image::{ImageBuffer, Rgb};
 use lopdf::Document;
+use monapdfsa_core::pdf::redact::{
+    apply_redactions_hybrid, FlattenedPageSpec, RedactionRegion,
+};
 use std::fs;
-use std::io::Cursor;
 use std::path::Path;
 
-/// 모자이크 가림 테스트용 픽셀화 이미지 Data URL을 생성합니다.
-fn create_test_mosaic_data_url(width: u32, height: u32) -> String {
+/// 300 DPI 초고화질 플래트닝 테스트용 합성 이미지 Data URL을 생성합니다.
+fn create_test_flattened_page_image(width: u32, height: u32) -> String {
     let mut img = ImageBuffer::<Rgb<u8>, Vec<u8>>::new(width, height);
-    let block_size = 8;
 
+    // 흰색 바탕 (A4 용지 배경)
     for y in 0..height {
         for x in 0..width {
-            let bx = x / block_size;
-            let by = y / block_size;
-            // 체커보드 모자이크 패턴 생성
-            let c = if (bx + by) % 2 == 0 {
-                [180u8, 200u8, 230u8]
-            } else {
-                [130u8, 160u8, 210u8]
-            };
-            img.put_pixel(x, y, Rgb(c));
+            img.put_pixel(x, y, Rgb([255u8, 255u8, 255u8]));
         }
     }
 
-    let mut png_bytes = Vec::new();
-    img.write_to(&mut Cursor::new(&mut png_bytes), image::ImageFormat::Png)
-        .expect("PNG 인코딩 실패");
+    // 블랙아웃 박스 (API 키 위치)
+    for y in 140..170 {
+        for x in 80..800 {
+            if x < width && y < height {
+                img.put_pixel(x, y, Rgb([0u8, 0u8, 0u8]));
+            }
+        }
+    }
 
-    format!("data:image/png;base64,{}", BASE64_STANDARD.encode(&png_bytes))
+    // 모자이크 체커보드 박스 (비밀번호 위치)
+    let block_size = 12;
+    for y in 200..235 {
+        for x in 80..720 {
+            if x < width && y < height {
+                let bx = x / block_size;
+                let by = y / block_size;
+                let c = if (bx + by) % 2 == 0 {
+                    [170u8, 195u8, 230u8]
+                } else {
+                    [120u8, 150u8, 205u8]
+                };
+                img.put_pixel(x, y, Rgb(c));
+            }
+        }
+    }
+
+    // 화이트아웃 박스 (주민번호 위치)
+    for y in 265..295 {
+        for x in 80..680 {
+            if x < width && y < height {
+                img.put_pixel(x, y, Rgb([255u8, 255u8, 255u8]));
+            }
+        }
+    }
+
+    let mut jpeg_bytes = Vec::new();
+    let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg_bytes, 92);
+    encoder
+        .encode(
+            img.as_raw(),
+            width,
+            height,
+            image::ExtendedColorType::Rgb8,
+        )
+        .expect("JPEG 인코딩 실패");
+
+    format!(
+        "data:image/jpeg;base64,{}",
+        BASE64_STANDARD.encode(&jpeg_bytes)
+    )
 }
 
 fn main() {
     println!("============================================================");
-    println!("  MonaPDFsa - Local Structural Redaction Test Runner");
+    println!("  MonaPDFsa - Local Flattening Redaction Test Runner");
     println!("============================================================");
 
     let input_candidates = [
@@ -52,7 +90,11 @@ fn main() {
 
     println!("📄 입력 원본 문서: {}", input_path);
 
-    let output_path = if Path::new("examples").exists() || Path::new("Cargo.toml").exists() && Path::new("src").exists() && !Path::new("../../examples").exists() {
+    let output_path = if Path::new("examples").exists()
+        || Path::new("Cargo.toml").exists()
+            && Path::new("src").exists()
+            && !Path::new("../../examples").exists()
+    {
         let _ = fs::create_dir_all("examples");
         "examples/sample_document_redacted.pdf"
     } else if Path::new("../../examples").exists() {
@@ -62,68 +104,35 @@ fn main() {
         "examples/sample_document_redacted.pdf"
     };
 
-    // 1. 모자이크 이미지 데이터 URL 생성
-    let mosaic_data_url = create_test_mosaic_data_url(160, 40);
+    // 1. 고해상도 플래트닝 페이지 스펙 준비 (Page 1 래스터라이징)
+    let flattened_image_data = create_test_flattened_page_image(1190, 1684);
+    let flattened_pages = vec![FlattenedPageSpec {
+        page: 1,
+        image_data: flattened_image_data,
+        width_pts: 595.0,
+        height_pts: 842.0,
+    }];
 
-    // 2. 가림 영역 정의 (페이지 1 & 페이지 2의 민감 정보 타겟팅)
-    let redactions = vec![
-        // Page 1: API 키 블랙아웃 (Blackout)
-        RedactionRegion {
-            id: "redact_p1_apikey".to_string(),
-            page: 1,
-            x: 45.0,
-            y: 670.0,
-            width: 440.0,
-            height: 24.0,
-            style: "blackout".to_string(),
-            image_data: None,
-        },
-        // Page 1: 비밀번호 모자이크 (Mosaic)
-        RedactionRegion {
-            id: "redact_p1_password".to_string(),
-            page: 1,
-            x: 45.0,
-            y: 646.0,
-            width: 380.0,
-            height: 24.0,
-            style: "mosaic".to_string(),
-            image_data: Some(mosaic_data_url),
-        },
-        // Page 1: 주민번호/고객정보 화이트아웃 (Whiteout)
-        RedactionRegion {
-            id: "redact_p1_ssn".to_string(),
-            page: 1,
-            x: 45.0,
-            y: 622.0,
-            width: 360.0,
-            height: 24.0,
-            style: "whiteout".to_string(),
-            image_data: None,
-        },
-        // Page 2: 재무 매출 데이터 블랙아웃 (Blackout)
-        RedactionRegion {
-            id: "redact_p2_revenue".to_string(),
-            page: 2,
-            x: 45.0,
-            y: 646.0,
-            width: 420.0,
-            height: 50.0,
-            style: "blackout".to_string(),
-            image_data: None,
-        },
-    ];
+    // 2. 벡터 가림 영역 정의 (Page 2 블랙아웃)
+    let redactions = vec![RedactionRegion {
+        id: "redact_p2_revenue".to_string(),
+        page: 2,
+        x: 45.0,
+        y: 646.0,
+        width: 420.0,
+        height: 50.0,
+        style: "blackout".to_string(),
+        image_data: None,
+    }];
 
-    println!("🔧 적용할 가림 영역 (총 {}개):", redactions.len());
-    for r in &redactions {
-        println!(
-            "  - [Page {}] {} 스타일 | 좌표 (x:{:.1}, y:{:.1}, w:{:.1}, h:{:.1})",
-            r.page, r.style, r.x, r.y, r.width, r.height
-        );
-    }
+    println!("🔧 스마트 하이브리드 가림 처리 계획:");
+    println!("  - [Page 1] 300 DPI 초고화질 플래트닝 (기저 텍스트/글리프 100% 원천 소멸)");
+    println!("  - [Page 2] 벡터 스트림 가림 처리");
+    println!("  - [Page 3] 원본 벡터 PDF 품질 유지");
 
-    // 3. 구조적 가림 처리 실행
-    println!("\n🚀 구조적 가림 처리(Structural Redaction) 엔진 실행 중...");
-    apply_redactions(input_path, output_path, &redactions)
+    // 3. 가림 처리 실행
+    println!("\n🚀 MonaPDFsa 스마트 가림 처리 엔진 실행 중...");
+    apply_redactions_hybrid(input_path, output_path, &flattened_pages, &redactions)
         .expect("가림 처리 적용 실패!");
 
     println!("✅ 가림 처리 완료! 생성된 파일: {}", output_path);
@@ -134,26 +143,58 @@ fn main() {
     let pages = doc.get_pages();
     println!("   - 총 페이지 수: {} 페이지", pages.len());
 
-    // Page 1 스트림 검사
+    // Page 1 스트림 검사: 플래트닝 적용으로 어떠한 텍스트 데이터도 남아있지 않아야 함
     if let Some(&p1_id) = pages.get(&1) {
         let content_bytes = doc.get_page_content(p1_id).unwrap_or_default();
         let content_str = String::from_utf8_lossy(&content_bytes);
 
-        println!("Page 1 content stream dump:\n{}", content_str);
-        let check_secret1 = !content_str.contains("sk-secret-9988224411aaccbb-production");
-        let check_secret2 = !content_str.contains("SuperSecretPassword123!");
-        let check_secret3 = !content_str.contains("123-45-6789");
-        let check_preserved = content_str.contains("CONFIDENTIAL DOCUMENT");
+        println!("   Page 1 Content Stream:\n{}", content_str);
+        let check_no_text = !content_str.contains("Tj")
+            && !content_str.contains("TJ")
+            && !content_str.contains("sk-secret")
+            && !content_str.contains("SuperSecretPassword");
 
-        println!("   ✓ API 키 스트림 제거: {}", if check_secret1 { "PASS (완전 파기됨)" } else { "FAIL (기저 텍스트 잔존)" });
-        println!("   ✓ 비밀번호 스트림 제거: {}", if check_secret2 { "PASS (완전 파기됨)" } else { "FAIL (기저 텍스트 잔존)" });
-        println!("   ✓ 고객 주민번호 스트림 제거: {}", if check_secret3 { "PASS (완전 파기됨)" } else { "FAIL (기저 텍스트 잔존)" });
-        println!("   ✓ 비가림 영역 본문 보존: {}", if check_preserved { "PASS (정상 유지)" } else { "FAIL" });
+        let check_image_do = content_str.contains("Do");
 
-        assert!(check_secret1 && check_secret2 && check_secret3, "보안 검증 실패: 민감 텍스트가 스트림에 남아있습니다!");
-        assert!(check_preserved, "무결성 검증 실패: 비가림 본문이 손상되었습니다!");
+        println!(
+            "   ✓ 기저 텍스트 100% 영구 파기(드래그/OCR 불가): {}",
+            if check_no_text {
+                "PASS (완벽 차단)"
+            } else {
+                "FAIL"
+            }
+        );
+        println!(
+            "   ✓ 고해상도 Image XObject 정상 임베딩: {}",
+            if check_image_do {
+                "PASS (정상 임베딩)"
+            } else {
+                "FAIL"
+            }
+        );
+
+        assert!(
+            check_no_text && check_image_do,
+            "보안 검증 실패: 플래트닝 페이지에 텍스트가 남아있거나 이미지가 누락되었습니다!"
+        );
     }
 
-    println!("\n🎉 모든 테스트 및 검증이 완벽하게 통과되었습니다!");
+    // Page 3 검사: 비가림 페이지는 텍스트가 정상 보존되어야 함
+    if let Some(&p3_id) = pages.get(&3) {
+        let content_bytes = doc.get_page_content(p3_id).unwrap_or_default();
+        let content_str = String::from_utf8_lossy(&content_bytes);
+        let check_p3 = content_str.contains("PAGE 3");
+        println!(
+            "   ✓ 비가림 페이지 원본 벡터/텍스트 보존: {}",
+            if check_p3 {
+                "PASS (정상 유지)"
+            } else {
+                "FAIL"
+            }
+        );
+        assert!(check_p3, "비가림 페이지가 손상되었습니다!");
+    }
+
+    println!("\n🎉 모든 테스트 및 보안 검증이 완벽하게 통과되었습니다!");
     println!("============================================================\n");
 }

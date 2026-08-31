@@ -5,7 +5,7 @@ use std::fs;
 use std::path::Path;
 
 use monapdfsa_core::pdf::merge::{merge_pdfs, organize_and_export_pages, PageOrganizeSpec};
-use monapdfsa_core::pdf::redact::{apply_redactions, RedactionRegion};
+use monapdfsa_core::pdf::redact::{apply_redactions_hybrid, FlattenedPageSpec, RedactionRegion};
 use monapdfsa_core::pdf::split::{split_pdf, SplitRange};
 
 /// 프론트엔드로 반환되는 PDF 파일 메타데이터 및 Base64 바이너리 정보
@@ -83,14 +83,17 @@ pub fn cmd_pdf_organize_and_export(
     organize_and_export_pages(&pages, &output_path)
 }
 
+
 /// 모자이크, 블랙아웃, 화이트아웃 가림 영역을 적용하고 기저 텍스트를 파기한 영구 가림 PDF를 저장하는 Tauri 커맨드
 #[tauri::command]
 pub fn cmd_pdf_apply_redactions(
     input_path: String,
     output_path: String,
     redactions: Vec<RedactionRegion>,
+    flattened_pages: Option<Vec<FlattenedPageSpec>>,
 ) -> Result<String, String> {
-    apply_redactions(&input_path, &output_path, &redactions)
+    let fl_pages = flattened_pages.unwrap_or_default();
+    apply_redactions_hybrid(&input_path, &output_path, &fl_pages, &redactions)
 }
 
 /// Base64 데이터를 디코딩하여 지정된 파일 경로에 직접 저장하는 유틸리티 커맨드

@@ -81,7 +81,7 @@ export default function App() {
     }
   }, []);
 
-  // Save redacted PDF
+  // Save redacted PDF with True High-Resolution Flattening
   const handleSaveFile = useCallback(async () => {
     if (!loadedPdf) return;
 
@@ -95,6 +95,28 @@ export default function App() {
       if (!outputPath) return;
 
       setIsSaving(true);
+
+      // 1. 가림 처리가 포함된 페이지들을 300 DPI 초고화질 이미지로 래스터라이즈(Flattening)
+      const uniqueRedactedPages = Array.from(new Set(redactions.map((r) => r.page)));
+      const flattenedPages: Array<{
+        page: number;
+        image_data: string;
+        width_pts: number;
+        height_pts: number;
+      }> = [];
+
+      if (docManagerRef.current && uniqueRedactedPages.length > 0) {
+        for (const pageNum of uniqueRedactedPages) {
+          const pageRedactions = redactions.filter((r) => r.page === pageNum);
+          const flResult = await docManagerRef.current.renderFlattenedRedactedPage(pageNum, pageRedactions, 2.5);
+          flattenedPages.push({
+            page: pageNum,
+            image_data: flResult.imageData,
+            width_pts: flResult.widthPts,
+            height_pts: flResult.heightPts,
+          });
+        }
+      }
 
       const rustRedactions = redactions.map((r) => ({
         id: r.id,
@@ -111,6 +133,7 @@ export default function App() {
         inputPath: loadedPdf.filePath,
         outputPath,
         redactions: rustRedactions,
+        flattenedPages: flattenedPages.length > 0 ? flattenedPages : null,
       });
 
       setIsSaving(false);

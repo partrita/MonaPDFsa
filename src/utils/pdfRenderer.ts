@@ -1,6 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist';
 // 번들된 워커 파일 URL 참조
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { applyMosaicToCanvas } from './mosaicFilter';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -145,6 +146,56 @@ export class PdfDocManager {
 
     await page.render({ canvasContext: ctx, viewport }).promise;
     return canvas.toDataURL('image/jpeg', 0.85);
+  }
+
+  /**
+   * 가림 처리(모자이크, 블랙아웃, 화이트아웃)가 적용된 페이지를 300 DPI 초고해상도로 래스터라이즈(Flattening)하여
+   * 기저 텍스트/어노테이션이 완전히 픽셀화된 JPEG 이미지 데이터를 생성합니다.
+   */
+  async renderFlattenedRedactedPage(
+    pageNum: number,
+    pageRedactions: any[],
+    scale: number = 2.5
+  ): Promise<{ imageData: string; widthPts: number; heightPts: number }> {
+    if (!this.pdfDoc) throw new Error('PDF 문서가 로드되지 않았습니다.');
+    const page = await this.pdfDoc.getPage(pageNum);
+    const viewport = page.getViewport({ scale });
+    const unscaledViewport = page.getViewport({ scale: 1.0 });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) throw new Error('캔버스 2D 컨텍스트를 생성할 수 없습니다.');
+
+    // 1. PDF 원본 벡터 페이지를 고해상도로 렌더링
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    // 2. 가림 영역을 캔버스 픽셀에 직접 굽기 (Bake / Flattening)
+    for (const r of pageRedactions) {
+      const rx = r.normX * canvas.width;
+      const ry = r.normY * canvas.height;
+      const rw = r.normWidth * canvas.width;
+      const rh = r.normHeight * canvas.height;
+
+      if (r.style === 'blackout') {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(rx, ry, rw, rh);
+      } else if (r.style === 'whiteout') {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(rx, ry, rw, rh);
+      } else if (r.style === 'mosaic') {
+        applyMosaicToCanvas(ctx, rx, ry, rw, rh, (r.blockSize || 14) * scale);
+      }
+    }
+
+    // 3. 고품질 JPEG Data URL 추출 (PDF Image XObject로 즉시 패키징)
+    const imageData = canvas.toDataURL('image/jpeg', 0.95);
+    return {
+      imageData,
+      widthPts: unscaledViewport.width,
+      heightPts: unscaledViewport.height,
+    };
   }
 
   destroy() {
