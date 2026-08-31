@@ -72,27 +72,28 @@ export const RedactionOverlay: React.FC<RedactionOverlayProps> = ({
     const width = Math.abs(currentPoint.x - startPoint.x);
     const height = Math.abs(currentPoint.y - startPoint.y);
 
-    // Filter tiny unintentional clicks (less than 8x8 pixels)
-    if (width >= 8 && height >= 8 && viewportWidth > 0 && viewportHeight > 0) {
+    // 미세한 의도치 않은 클릭(6px 미만) 필터링
+    if (width >= 6 && height >= 6 && viewportWidth > 0 && viewportHeight > 0) {
       const normX = x / viewportWidth;
       const normY = y / viewportHeight;
       const normWidth = width / viewportWidth;
       const normHeight = height / viewportHeight;
 
-      // PDF coordinates (origin bottom-left, 72 DPI points)
+      // PDF 좌표계 변환 (좌하단 원점 0,0 기준 72 DPI 포인트)
       const pdfX = normX * pageWidthPoints;
       const pdfWidth = normWidth * pageWidthPoints;
       const pdfHeight = normHeight * pageHeightPoints;
       const pdfY = pageHeightPoints - (normY + normHeight) * pageHeightPoints;
 
-      // Generate pixelated mosaic if mosaic mode
+      // macOS Retina / High-DPI 디스플레이 정확한 픽셀 배율 보정
       let imageData: string | undefined = undefined;
       if (mode === 'mosaic') {
-        const dpr = sourceCanvas.width / viewportWidth;
-        const canvasPixelX = x * dpr;
-        const canvasPixelY = y * dpr;
-        const canvasPixelW = width * dpr;
-        const canvasPixelH = height * dpr;
+        const scaleFactorX = sourceCanvas.width / viewportWidth;
+        const scaleFactorY = sourceCanvas.height / viewportHeight;
+        const canvasPixelX = x * scaleFactorX;
+        const canvasPixelY = y * scaleFactorY;
+        const canvasPixelW = width * scaleFactorX;
+        const canvasPixelH = height * scaleFactorY;
 
         imageData = createMosaicImageDataUrl(
           sourceCanvas,
@@ -100,7 +101,7 @@ export const RedactionOverlay: React.FC<RedactionOverlayProps> = ({
           canvasPixelY,
           canvasPixelW,
           canvasPixelH,
-          blockSize * dpr
+          blockSize * scaleFactorX
         );
       }
 
@@ -128,7 +129,7 @@ export const RedactionOverlay: React.FC<RedactionOverlayProps> = ({
     setCurrentPoint(null);
   };
 
-  // Compute active drag rectangle
+  // 드래그 중인 활성 사각형 계산
   const dragRect = isDrawing && startPoint && currentPoint ? {
     x: Math.min(startPoint.x, currentPoint.x),
     y: Math.min(startPoint.y, currentPoint.y),
@@ -148,7 +149,7 @@ export const RedactionOverlay: React.FC<RedactionOverlayProps> = ({
         isInteractive ? 'cursor-crosshair' : 'cursor-default'
       }`}
     >
-      {/* Existing redactions for this page */}
+      {/* 현재 페이지의 가림 처리 영역 렌더링 */}
       {redactions.map((r) => {
         const left = r.normX * viewportWidth;
         const top = r.normY * viewportHeight;
@@ -166,7 +167,7 @@ export const RedactionOverlay: React.FC<RedactionOverlayProps> = ({
             }}
             className="absolute group z-10 select-none shadow-sm transition-all"
           >
-            {/* Visual Redaction Content */}
+            {/* 가림 오버레이 내용 */}
             {r.style === 'mosaic' && r.imageData ? (
               <img
                 src={r.imageData}
@@ -179,7 +180,7 @@ export const RedactionOverlay: React.FC<RedactionOverlayProps> = ({
               <div className="w-full h-full bg-black border border-gray-900 rounded-[1px]" />
             )}
 
-            {/* Hover Badge & Delete Button */}
+            {/* 마우스 호버 시 가림 레이블 및 삭제 버튼 */}
             <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-7 right-0 flex items-center gap-1 bg-gray-900/90 text-white text-[10px] px-1.5 py-0.5 rounded shadow-lg z-20 pointer-events-auto">
               <span className="font-semibold capitalize">
                 {r.style === 'mosaic' ? '모자이크' : r.style === 'blackout' ? '블랙아웃' : '화이트아웃'}
@@ -199,7 +200,7 @@ export const RedactionOverlay: React.FC<RedactionOverlayProps> = ({
         );
       })}
 
-      {/* Active dragging dashed box */}
+      {/* 마우스 드래그 중인 선택 사각형 */}
       {dragRect && dragRect.width > 2 && dragRect.height > 2 && (
         <div
           style={{
@@ -210,7 +211,7 @@ export const RedactionOverlay: React.FC<RedactionOverlayProps> = ({
           }}
           className="absolute border-2 border-sky-500 border-dashed bg-sky-400/20 pointer-events-none z-20 animate-pulse"
         >
-          <div className="absolute -top-5 left-0 bg-sky-600 text-white text-[9px] font-bold px-1 rounded">
+          <div className="absolute -top-5 left-0 bg-sky-600 text-white text-[9px] font-bold px-1 rounded shadow">
             {mode === 'mosaic' ? '모자이크 영역 선택 중' : '가림 영역 선택 중'}
           </div>
         </div>

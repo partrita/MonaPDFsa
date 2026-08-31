@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "test": "node --test tests/monapdfsa.test.mjs",
+    "build": "npm test && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri"
   },

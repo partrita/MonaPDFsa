@@ -2,20 +2,20 @@ export type RedactionMode = 'hand' | 'mosaic' | 'blackout' | 'whiteout';
 
 export interface RedactionItem {
   id: string;
-  page: number; // 1-based
-  // Coordinates in PDF points (origin at bottom-left for PDF standard)
+  page: number; // 1부터 시작하는 페이지 번호
+  // PDF 표준 포인트 좌표 (좌하단 원점 0,0 기준)
   pdfX: number;
   pdfY: number;
   pdfWidth: number;
   pdfHeight: number;
-  // Normalized coordinates (0 to 1) relative to page for responsive rendering
+  // 화면 렌더링용 정규화 좌표 (0.0 ~ 1.0)
   normX: number;
   normY: number;
   normWidth: number;
   normHeight: number;
   style: 'mosaic' | 'blackout' | 'whiteout';
   blockSize: number;
-  imageData?: string; // base64 PNG data URL
+  imageData?: string; // 모자이크 PNG Base64 Data URL
 }
 
 export interface LoadedPdf {
@@ -32,4 +32,15 @@ export interface MergeItem {
   fileName: string;
   fileSize: number;
   pageCount?: number;
+}
+
+/// 통합 페이지 관리(Page Studio)의 개별 페이지 카드 모델
+export interface PageStudioItem {
+  id: string;
+  sourceFilePath: string;
+  sourceFileName: string;
+  sourcePageIndex: number; // 1부터 시작하는 원본 페이지 번호
+  rotation: number; // 0, 90, 180, 270 (시계방향 각도)
+  thumbnailUrl?: string;
+  isSplitBreak?: boolean; // 해당 페이지 바로 뒤에서 분할할지 여부
 }

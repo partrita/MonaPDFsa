@@ -1,10 +1,12 @@
 use lopdf::{dictionary, Document, Object, Stream};
 
+/// 테스트 및 시연용 3페이지 샘플 PDF 문서(`sample_document.pdf`)를 생성하는 유틸리티 바이너리
 fn main() {
     let mut doc = Document::with_version("1.5");
     let pages_id = doc.new_object_id();
     let font_id = doc.new_object_id();
 
+    // 기본 영문 폰트(Helvetica) 객체 정의
     let font_dict = dictionary! {
         "Type" => "Font",
         "Subtype" => "Type1",
@@ -16,7 +18,7 @@ fn main() {
 
     let sample_texts = [
         vec![
-            "CONFIDENTIAL DOCUMENT - COOL FERMI PDF STUDIO",
+            "CONFIDENTIAL DOCUMENT - MONAPDFSA STUDIO",
             "Page 1: Project Overview & Secret Credentials",
             "API_KEY: sk-secret-9988224411aaccbb-production",
             "User Password: SuperSecretPassword123!",
@@ -28,15 +30,15 @@ fn main() {
             "Financial Statement Q4 & Private Revenue Data",
             "Gross Revenue: $14,250,000 USD",
             "Net Profit Margin: 34.5% (Internal Use Only)",
-            "Bank Account: 8820-192-334110 Swift: FERMIKR",
+            "Bank Account: 8820-192-334110 Swift: MONAKR",
             "Use the Blackout Tool to cover this financial report.",
         ],
         vec![
-            "COOL FERMI PDF STUDIO - PAGE 3",
-            "PDF Merge and Split Verification Page",
+            "MONAPDFSA STUDIO - PAGE 3",
+            "PDF Merge, Split & Drag-and-Drop Page Organizer",
             "This document contains 3 distinct pages.",
-            "You can test splitting this document into individual pages",
-            "or merge it with other PDF documents in the Merge Tab!",
+            "You can test splitting this document into individual pages,",
+            "reordering them in Page Studio, or redacting sensitive data!",
         ],
     ];
 
@@ -44,6 +46,7 @@ fn main() {
         let content_id = doc.new_object_id();
         let page_id = doc.new_object_id();
 
+        // 텍스트 블록(BT ... ET) 스트림 작성
         let mut content = String::from("BT /F1 16 Tf 50 750 Td\n");
         for (line_idx, line) in lines.iter().enumerate() {
             if line_idx == 0 {
@@ -57,6 +60,7 @@ fn main() {
         let stream = Stream::new(dictionary! {}, content.into_bytes());
         doc.objects.insert(content_id, Object::Stream(stream));
 
+        // A4 규격 (595 x 842 pt) 페이지 딕셔너리 구성
         let page_dict = dictionary! {
             "Type" => "Page",
             "Parent" => Object::Reference(pages_id),
@@ -88,5 +92,5 @@ fn main() {
     doc.trailer.set("Root", Object::Reference(catalog_id));
 
     doc.save("sample_document.pdf").unwrap();
-    println!("Successfully generated sample_document.pdf with 3 pages!");
+    println!("MonaPDFsa 3페이지 샘플 문서(sample_document.pdf)가 성공적으로 생성되었습니다.");
 }

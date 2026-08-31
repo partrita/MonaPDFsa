@@ -6,6 +6,7 @@ import { Navbar, ActiveTab } from './components/Navbar';
 import { Toolbar } from './components/Toolbar';
 import { PdfViewer } from './components/PdfViewer';
 import { RedactionSidebar } from './components/RedactionSidebar';
+import { PageStudioTab } from './components/PageStudioTab';
 import { MergeTab } from './components/MergeTab';
 import { SplitTab } from './components/SplitTab';
 import { PdfDocManager } from './utils/pdfRenderer';
@@ -40,7 +41,7 @@ export default function App() {
   }, [isDark]);
 
   // Open PDF file handler
-  const handleOpenFile = useCallback(async (specificPath?: string) => {
+  const handleOpenFile = useCallback(async (specificPath?: string, targetPage: number = 1) => {
     try {
       let targetPath = specificPath;
 
@@ -65,7 +66,7 @@ export default function App() {
       });
 
       setTotalPages(pages);
-      setCurrentPage(1);
+      setCurrentPage(Math.min(pages, Math.max(1, targetPage)));
       setScale(1.0);
       setRedactions([]);
       setActiveTab('viewer');
@@ -304,6 +305,10 @@ export default function App() {
             />
           </div>
         </div>
+      )}
+
+      {activeTab === 'studio' && (
+        <PageStudioTab onOpenInViewer={(path, pageNum) => handleOpenFile(path, pageNum || 1)} />
       )}
 
       {activeTab === 'merge' && (
