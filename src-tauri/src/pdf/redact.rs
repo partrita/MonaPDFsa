@@ -251,12 +251,13 @@ fn sanitize_page_content_streams(
     }
 
     // 3. /Annots (링크, 주석, OCR 텍스트 레이어) 중 가림 영역과 겹치는 항목 삭제
-    if let Ok(page_obj) = doc.get_object_mut(page_id) {
-        if let Ok(page_dict) = page_obj.as_dict_mut() {
-            if let Ok(annots_arr) = page_dict.get_mut(b"Annots").and_then(Object::as_array_mut) {
-                annots_arr.retain(|annot_ref| {
+    // 먼저 불변 차용으로 삭제 대상 어노테이션 ID들을 수집합니다.
+    let annots_to_remove: Vec<ObjectId> = if let Ok(page_dict) = doc.get_object(page_id).and_then(Object::as_dict) {
+        if let Ok(annots_arr) = page_dict.get(b"Annots").and_then(Object::as_array) {
+            annots_arr
+                .iter()
+                .filter_map(|annot_ref| {
                     if let Object::Reference(aid) = annot_ref {
-                        // 어노테이션의 /Rect 영역 확인
                         if let Ok(annot_dict) = doc.get_object(*aid).and_then(Object::as_dict) {
                             if let Ok(rect_arr) = annot_dict.get(b"Rect").and_then(Object::as_array) {
                                 let rect_vals: Vec<f64> = rect_arr
@@ -265,13 +266,34 @@ fn sanitize_page_content_streams(
                                     .map(|f| f as f64)
                                     .collect();
                                 if is_rect_overlap_redactions(&rect_vals, regions) {
-                                    return false; // 겹치는 어노테이션 제거
+                                    return Some(*aid);
                                 }
                             }
                         }
                     }
-                    true
-                });
+                    None
+                })
+                .collect()
+        } else {
+            Vec::new()
+        }
+    } else {
+        Vec::new()
+    };
+
+    // 가변 차용으로 삭제 대상 어노테이션들을 배열에서 제거합니다.
+    if !annots_to_remove.is_empty() {
+        if let Ok(page_obj) = doc.get_object_mut(page_id) {
+            if let Ok(page_dict) = page_obj.as_dict_mut() {
+                if let Ok(annots_arr) = page_dict.get_mut(b"Annots").and_then(Object::as_array_mut) {
+                    annots_arr.retain(|annot_ref| {
+                        if let Object::Reference(aid) = annot_ref {
+                            !annots_to_remove.contains(aid)
+                        } else {
+                            true
+                        }
+                    });
+                }
             }
         }
     }
