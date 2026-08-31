@@ -3,10 +3,6 @@ name: "Manual Release"
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Release Version (e.g. 0.1.0 or v0.1.0)'
-        required: true
-        default: '0.1.0'
       draft:
         description: 'Create Draft Release'
         type: boolean
@@ -46,7 +42,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install Rust stable
@@ -68,9 +64,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.event.inputs.version && (startsWith(github.event.inputs.version, 'v') && github.event.inputs.version || format('v{0}', github.event.inputs.version)) || 'v__VERSION__' }}
-          releaseName: 'MonaPDFsa ${{ github.event.inputs.version && (startsWith(github.event.inputs.version, 'v') && github.event.inputs.version || format('v{0}', github.event.inputs.version)) || 'v__VERSION__' }}'
+          tagName: v__VERSION__
+          releaseName: 'MonaPDFsa v__VERSION__'
           releaseBody: 'Cross-platform desktop release for Windows (.exe/.msi), macOS (.dmg/.app), and Linux (.deb/.AppImage).'
-          releaseDraft: ${{ github.event.inputs.draft != '' && github.event.inputs.draft == 'true' || true }}
-          prerelease: ${{ github.event.inputs.prerelease == 'true' }}
+          releaseDraft: ${{ github.event.inputs.draft != false }}
+          prerelease: ${{ github.event.inputs.prerelease == true }}
           args: ${{ matrix.args }}

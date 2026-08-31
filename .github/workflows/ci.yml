@@ -19,7 +19,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install dependencies
@@ -53,7 +53,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install Rust stable
@@ -83,6 +83,5 @@ jobs:
         with:
           name: MonaPDFsa-${{ matrix.name }}-bundles
           path: |
-            src-tauri/target/release/bundle/
-            src-tauri/target/*/release/bundle/
+            src-tauri/target/**/bundle/**/*
           if-no-files-found: warn
