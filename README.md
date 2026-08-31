@@ -1,5 +1,7 @@
 # MonaPDFsa - Cross-Platform PDF Editor
 
+[![Manual Release](https://github.com/partrita/MonaPDFsa/actions/workflows/release.yml/badge.svg)](https://github.com/partrita/MonaPDFsa/actions/workflows/release.yml)
+
 A high-performance, cross-platform desktop PDF viewer, mosaic/blackout redaction tool, and visual drag-and-drop PDF page organizer built with Rust's **Tauri v2** and **React + TypeScript + Tailwind CSS**.
 
 Fully supports **Windows, macOS, and Linux**.
@@ -49,23 +51,23 @@ xattr -d com.apple.quarantine MonaPDFsa.dmg
 
 ### 📁 통합 페이지 관리 (Page Organizer)
 
-| 기능 | 설명 | 상태 |
-| :--- | :--- | :---: |
-| **마우스 드래그 순서 변경** | 썸네일 카드를 마우스로 끌어다 놓아 페이지 순서를 자유롭게 재배치 | ✅ 완료 |
-| **다중 PDF 추가/통합** | 여러 PDF 문서를 한 작업공간에 불러와 임의 순서로 조립 | ✅ 완료 |
-| **페이지 회전 (Rotate)** | 시계/반시계 방향으로 개별 또는 전체 페이지 90° 회전 | ✅ 완료 |
-| **페이지 삭제 (Delete)** | 불필요한 페이지를 원클릭으로 제거 | ✅ 완료 |
-| **분할 지점 설정 (Split)** | 카드 하단 ✂️ 아이콘으로 분할 구분점을 지정하여 다중 PDF로 일괄 분할 | ✅ 완료 |
-| **원스톱 병합 내보내기** | 재배치된 상태 그대로 단일 PDF 문서로 즉시 저장 | ✅ 완료 |
+| 기능                        | 설명                                                               |  상태  |
+| :-------------------------- | :----------------------------------------------------------------- | :----: |
+| **마우스 드래그 순서 변경** | 썸네일 카드를 마우스로 끌어다 놓아 페이지 순서를 자유롭게 재배치   | ✅ 완료 |
+| **다중 PDF 추가/통합**      | 여러 PDF 문서를 한 작업공간에 불러와 임의 순서로 조립              | ✅ 완료 |
+| **페이지 회전 (Rotate)**    | 시계/반시계 방향으로 개별 또는 전체 페이지 90° 회전                | ✅ 완료 |
+| **페이지 삭제 (Delete)**    | 불필요한 페이지를 원클릭으로 제거                                  | ✅ 완료 |
+| **분할 지점 설정 (Split)**  | 카드 하단 ✂️ 아이콘으로 분할 구분점을 지정하여 다중 PDF로 일괄 분할 | ✅ 완료 |
+| **원스톱 병합 내보내기**    | 재배치된 상태 그대로 단일 PDF 문서로 즉시 저장                     | ✅ 완료 |
 
 ### 🔲 영구 가림 처리 (Redaction & Text Sanitization)
 
-| 기능 | 설명 | 상태 |
-| :--- | :--- | :---: |
-| **모자이크 가림 (Mosaic)** | 실시간 픽셀화 블록 모자이크 프리뷰 및 DeviceRGB XObject 스탬프 임베딩 | ✅ 완료 |
-| **블랙아웃 / 화이트아웃** | 단색 검정/흰색 박스로 민감 정보 완전 은폐 | ✅ 완료 |
-| **OCR / 텍스트 선택 방지** | 가림 영역 내부의 PDF 텍스트 연산자 및 어노테이션을 파기하여 복사/검색/OCR 원천 차단 | ✅ 완료 |
-| **Retina High-DPI 정밀 보정** | macOS Retina 화면에서도 1:1 완벽한 좌표 및 크기 일치 보장 | ✅ 완료 |
+| 기능                          | 설명                                                                                |  상태  |
+| :---------------------------- | :---------------------------------------------------------------------------------- | :----: |
+| **모자이크 가림 (Mosaic)**    | 실시간 픽셀화 블록 모자이크 프리뷰 및 DeviceRGB XObject 스탬프 임베딩               | ✅ 완료 |
+| **블랙아웃 / 화이트아웃**     | 단색 검정/흰색 박스로 민감 정보 완전 은폐                                           | ✅ 완료 |
+| **OCR / 텍스트 선택 방지**    | 가림 영역 내부의 PDF 텍스트 연산자 및 어노테이션을 파기하여 복사/검색/OCR 원천 차단 | ✅ 완료 |
+| **Retina High-DPI 정밀 보정** | macOS Retina 화면에서도 1:1 완벽한 좌표 및 크기 일치 보장                           | ✅ 완료 |
 
 ---
 
