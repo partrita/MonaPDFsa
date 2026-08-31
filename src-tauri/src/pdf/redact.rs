@@ -71,10 +71,84 @@ fn resolve_page_resources(doc: &Document, mut node: ObjectId) -> Option<Dictiona
     }
 }
 
+/// 페이지 리소스에 새 XObject들을 등록합니다.
+/// 기존 리소스(/Font, /ExtGState, 기존 /XObject 등)를 100% 보존합니다.
+fn add_xobjects_to_page_resources(
+    doc: &mut Document,
+    page_id: ObjectId,
+    xobj_additions: &[(String, ObjectId)],
+) {
+    if xobj_additions.is_empty() {
+        return;
+    }
+
+    // 1. 페이지의 /Resources 객체 참조 형태 확인
+    let resources_ref = if let Ok(page_dict) = doc.get_object(page_id).and_then(Object::as_dict) {
+        match page_dict.get(b"Resources") {
+            Ok(Object::Reference(id)) => Some(*id),
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    // 2-A. /Resources가 간접 참조(Indirect Object)인 경우 해당 리소스 객체 직접 수정
+    if let Some(res_id) = resources_ref {
+        if let Ok(res_obj) = doc.get_object_mut(res_id) {
+            if let Ok(res_dict) = res_obj.as_dict_mut() {
+                let mut xobjects = res_dict
+                    .get(b"XObject")
+                    .and_then(Object::as_dict)
+                    .cloned()
+                    .unwrap_or_default();
+                for (name, id) in xobj_additions {
+                    xobjects.set(name.as_bytes().to_vec(), Object::Reference(*id));
+                }
+                res_dict.set("XObject", Object::Dictionary(xobjects));
+                return;
+            }
+        }
+    }
+
+    // 2-B. /Resources가 페이지 사전에 직접 포함되어 있거나 상위 노드로부터 상속된 경우
+    let inherited_resources = resolve_page_resources(doc, page_id);
+
+    if let Ok(page_obj) = doc.get_object_mut(page_id) {
+        if let Ok(page_dict) = page_obj.as_dict_mut() {
+            let mut resources = match page_dict.get_mut(b"Resources") {
+                Ok(Object::Dictionary(ref mut d)) => {
+                    let mut xobjects = d
+                        .get(b"XObject")
+                        .and_then(Object::as_dict)
+                        .cloned()
+                        .unwrap_or_default();
+                    for (name, id) in xobj_additions {
+                        xobjects.set(name.as_bytes().to_vec(), Object::Reference(*id));
+                    }
+                    d.set("XObject", Object::Dictionary(xobjects));
+                    return;
+                }
+                _ => inherited_resources.unwrap_or_default(),
+            };
+
+            let mut xobjects = resources
+                .get(b"XObject")
+                .and_then(Object::as_dict)
+                .cloned()
+                .unwrap_or_default();
+            for (name, id) in xobj_additions {
+                xobjects.set(name.as_bytes().to_vec(), Object::Reference(*id));
+            }
+            resources.set("XObject", Object::Dictionary(xobjects));
+            page_dict.set("Resources", Object::Dictionary(resources));
+        }
+    }
+}
+
 /// 주어진 좌표가 가림 영역 목록 중 하나라도 겹치는지 검사합니다.
 fn is_point_in_redactions(x: f64, y: f64, regions: &[&RedactionRegion]) -> bool {
     for r in regions {
-        // 텍스트 크기와 행간을 고려하여 약간의 오차 마진(10pt) 허용
+        // 텍스트 크기와 행간을 고려하여 약간의 오차 마진(5pt) 허용
         let min_x = r.x - 5.0;
         let max_x = r.x + r.width + 5.0;
         let min_y = r.y - 5.0;
@@ -110,12 +184,16 @@ fn is_rect_overlap_redactions(rect: &[f64], regions: &[&RedactionRegion]) -> boo
 }
 
 /// 페이지의 기존 컨텐츠 스트림을 디코딩하여, 가림 영역 안에 위치한 텍스트 연산자(Tj, TJ, ', ")를
-/// 삭제하거나 공백으로 치환하여 OCR/텍스트 복사를 근본적으로 방지합니다.
+/// 공백으로 치환하여 OCR/텍스트 복사를 근본적으로 방지합니다.
 fn sanitize_page_content_streams(
     doc: &mut Document,
     page_id: ObjectId,
     regions: &[&RedactionRegion],
 ) {
+    if regions.is_empty() {
+        return;
+    }
+
     // 1. 페이지의 /Contents 객체 식별자 목록 수집
     let content_ids: Vec<ObjectId> = match doc.get_object(page_id) {
         Ok(Object::Dictionary(dict)) => match dict.get(b"Contents") {
@@ -132,11 +210,10 @@ fn sanitize_page_content_streams(
         _ => Vec::new(),
     };
 
-    // 2. 각 컨텐츠 스트림을 순회하며 텍스트 파기 처리
+    // 2. 각 컨텐츠 스트림을 순회하며 가림 영역 내의 텍스트 파기 처리
     for cid in content_ids {
         let stream_bytes = match doc.get_object(cid) {
             Ok(Object::Stream(stream)) => {
-                // 압축 해제된 스트림 내용 가져오기
                 if let Ok(decompressed) = stream.decompressed_content() {
                     decompressed
                 } else {
@@ -146,7 +223,6 @@ fn sanitize_page_content_streams(
             _ => continue,
         };
 
-        // lopdf 컨텐츠 연산자 디코딩
         if let Ok(mut content) = Content::decode(&stream_bytes) {
             let mut text_x = 0.0f64;
             let mut text_y = 0.0f64;
@@ -157,7 +233,6 @@ fn sanitize_page_content_streams(
 
             for op in &mut content.operations {
                 match op.operator.as_str() {
-                    // 폰트 설정 (Tf): 글꼴 크기 추적
                     "Tf" => {
                         if op.operands.len() >= 2 {
                             if let Ok(sz) = op.operands[1].as_float() {
@@ -167,7 +242,6 @@ fn sanitize_page_content_streams(
                             }
                         }
                     }
-                    // 텍스트 행렬 설정 (Tm): [a, b, c, d, e, f] 중 e, f가 X, Y 좌표
                     "Tm" => {
                         if op.operands.len() >= 6 {
                             let e = op.operands[4].as_float().or_else(|_| op.operands[4].as_i64().map(|v| v as f32)).unwrap_or(0.0) as f64;
@@ -178,7 +252,6 @@ fn sanitize_page_content_streams(
                             line_y = f;
                         }
                     }
-                    // 텍스트 위치 상대 이동 (Td / TD)
                     "Td" | "TD" => {
                         if op.operands.len() >= 2 {
                             let tx = op.operands[0].as_float().or_else(|_| op.operands[0].as_i64().map(|v| v as f32)).unwrap_or(0.0) as f64;
@@ -189,29 +262,23 @@ fn sanitize_page_content_streams(
                             text_y = line_y;
                         }
                     }
-                    // 다음 줄로 이동 (T*)
                     "T*" => {
                         line_y -= font_size;
                         text_x = line_x;
                         text_y = line_y;
                     }
-                    // 텍스트 출력 (Tj): 단일 문자열
                     "Tj" => {
                         if is_point_in_redactions(text_x, text_y, regions) {
-                            // 가림 영역과 겹칠 경우 빈 문자열로 치환
                             op.operands = vec![Object::String(Vec::new(), StringFormat::Literal)];
                             modified = true;
                         }
                     }
-                    // 텍스트 출력 (TJ): 문자열 및 간격 배열
                     "TJ" => {
                         if is_point_in_redactions(text_x, text_y, regions) {
-                            // 가림 영역과 겹칠 경우 빈 배열로 치환
                             op.operands = vec![Object::Array(Vec::new())];
                             modified = true;
                         }
                     }
-                    // 다음 줄로 이동 후 출력 (')
                     "'" => {
                         line_y -= font_size;
                         text_x = line_x;
@@ -221,7 +288,6 @@ fn sanitize_page_content_streams(
                             modified = true;
                         }
                     }
-                    // 간격 설정 및 줄바꿈 출력 (")
                     "\"" => {
                         line_y -= font_size;
                         text_x = line_x;
@@ -238,11 +304,12 @@ fn sanitize_page_content_streams(
             // 스트림이 수정되었다면 다시 인코딩하여 저장
             if modified {
                 if let Ok(encoded) = content.encode() {
-                    let compressed = zlib_compress(&encoded).unwrap_or(encoded);
-                    if let Ok(stream_obj) = doc.get_object_mut(cid) {
-                        if let Ok(stream) = stream_obj.as_stream_mut() {
-                            stream.dict.set("Filter", "FlateDecode");
-                            stream.set_plain_content(compressed);
+                    if let Ok(compressed) = zlib_compress(&encoded) {
+                        if let Ok(stream_obj) = doc.get_object_mut(cid) {
+                            if let Ok(stream) = stream_obj.as_stream_mut() {
+                                stream.dict.set("Filter", "FlateDecode");
+                                stream.set_content(compressed);
+                            }
                         }
                     }
                 }
@@ -251,7 +318,6 @@ fn sanitize_page_content_streams(
     }
 
     // 3. /Annots (링크, 주석, OCR 텍스트 레이어) 중 가림 영역과 겹치는 항목 삭제
-    // 먼저 불변 차용으로 삭제 대상 어노테이션 ID들을 수집합니다.
     let annots_to_remove: Vec<ObjectId> = if let Ok(page_dict) = doc.get_object(page_id).and_then(Object::as_dict) {
         if let Ok(annots_arr) = page_dict.get(b"Annots").and_then(Object::as_array) {
             annots_arr
@@ -281,7 +347,6 @@ fn sanitize_page_content_streams(
         Vec::new()
     };
 
-    // 가변 차용으로 삭제 대상 어노테이션들을 배열에서 제거합니다.
     if !annots_to_remove.is_empty() {
         if let Ok(page_obj) = doc.get_object_mut(page_id) {
             if let Ok(page_dict) = page_obj.as_dict_mut() {
@@ -302,10 +367,11 @@ fn sanitize_page_content_streams(
 /// 지정된 PDF 파일에 모자이크/블랙아웃/화이트아웃 가림 영역을 영구적으로 적용합니다.
 ///
 /// **보안 강화 핵심 동작**:
-/// 1. 기저 텍스트 및 어노테이션 스트림에서 텍스트 연산자를 파기(Sanitize)하여 OCR/텍스트 선택 불가 보장
-/// 2. 모자이크 이미지를 DeviceRGB XObject 스트림으로 변환 후 고해상도 그래픽 스탬프로 임베딩
-/// 3. 블랙아웃/화이트아웃 사각형을 벡터 연산자로 드로잉
-/// 4. FlateDecode zlib 압축을 적용하여 모든 PDF 뷰어(Acrobat, Chrome, Preview 등)와의 100% 호환성 확보
+/// 1. 가림 영역에 해당하는 텍스트만 선택적으로 파기하고, 문서의 나머지 텍스트/이미지/서식은 100% 보존
+/// 2. 기존 페이지 리소스(/Font, /ExtGState 등)를 완벽하게 유지하여 텍스트 렌더링 유지
+/// 3. 모자이크 이미지를 DeviceRGB XObject 스트림으로 변환 후 고해상도 그래픽 스탬프로 임베딩
+/// 4. 블랙아웃/화이트아웃 사각형을 벡터 연산자로 드로잉
+/// 5. FlateDecode zlib 압축을 적용하여 모든 PDF 뷰어(Acrobat, Chrome, Preview 등)와의 100% 호환성 확보
 pub fn apply_redactions(
     input_path: &str,
     output_path: &str,
@@ -329,7 +395,7 @@ pub fn apply_redactions(
             None => continue,
         };
 
-        // 1. [보안] 가림 영역 밑의 기저 텍스트 스트림 및 어노테이션 제거 (OCR 및 텍스트 선택 차단)
+        // 1. [보안] 가림 영역 밑의 기저 텍스트 스트림 및 어노테이션 선택적 제거 (비가림 영역 100% 보존)
         sanitize_page_content_streams(&mut doc, page_id, &regions);
 
         let mut draw_commands = String::new();
@@ -430,50 +496,12 @@ pub fn apply_redactions(
         );
         doc.objects.insert(stream_id, Object::Stream(new_stream));
 
-        // 4. 페이지 리소스(/Resources)에 XObject 등록 및 /Contents에 새 스트림 덧붙이기
-        let effective_resources = if images_to_add.is_empty() {
-            None
-        } else {
-            resolve_page_resources(&doc, page_id)
-        };
+        // 4. 페이지 리소스(/Resources)에 XObject 안전하게 등록 (기존 폰트/그래픽 상태 100% 보존)
+        add_xobjects_to_page_resources(&mut doc, page_id, &images_to_add);
 
-        let xobj_additions: Vec<(Vec<u8>, Object)> = images_to_add
-            .iter()
-            .map(|(name, id)| (name.as_bytes().to_vec(), Object::Reference(*id)))
-            .collect();
-
+        // 5. /Contents 배열 뒤에 가림 처리 스트림 추가 (기존 내용 위에 덧그리기)
         if let Ok(page_obj) = doc.get_object_mut(page_id) {
             if let Ok(page_dict) = page_obj.as_dict_mut() {
-                if !xobj_additions.is_empty() {
-                    match page_dict.get_mut(b"Resources") {
-                        Ok(Object::Dictionary(resources)) => {
-                            let mut xobjects = resources
-                                .get(b"XObject")
-                                .and_then(|x| x.as_dict())
-                                .cloned()
-                                .unwrap_or_default();
-                            for (name_bytes, obj_ref) in xobj_additions {
-                                xobjects.set(name_bytes, obj_ref);
-                            }
-                            resources.set("XObject", Object::Dictionary(xobjects));
-                        }
-                        _ => {
-                            let mut resources = effective_resources.clone().unwrap_or_default();
-                            let mut xobjects = resources
-                                .get(b"XObject")
-                                .and_then(|x| x.as_dict())
-                                .cloned()
-                                .unwrap_or_default();
-                            for (name_bytes, obj_ref) in xobj_additions {
-                                xobjects.set(name_bytes, obj_ref);
-                            }
-                            resources.set("XObject", Object::Dictionary(xobjects));
-                            page_dict.set("Resources", Object::Dictionary(resources));
-                        }
-                    }
-                }
-
-                // /Contents 배열 뒤에 가림 처리 스트림 추가
                 match page_dict.get_mut(b"Contents") {
                     Ok(Object::Reference(content_ref)) => {
                         let old_ref = *content_ref;
