@@ -6,9 +6,7 @@ import { Navbar, ActiveTab } from './components/Navbar';
 import { Toolbar } from './components/Toolbar';
 import { PdfViewer } from './components/PdfViewer';
 import { RedactionSidebar } from './components/RedactionSidebar';
-import { PageStudioTab } from './components/PageStudioTab';
-import { MergeTab } from './components/MergeTab';
-import { SplitTab } from './components/SplitTab';
+import { PageManagerTab } from './components/PageManagerTab';
 import { PdfDocManager } from './utils/pdfRenderer';
 import { RedactionItem, RedactionMode, LoadedPdf } from './types';
 import { CheckCircle2, AlertCircle, X, FileUp } from 'lucide-react';
@@ -307,16 +305,8 @@ export default function App() {
         </div>
       )}
 
-      {activeTab === 'studio' && (
-        <PageStudioTab onOpenInViewer={(path, pageNum) => handleOpenFile(path, pageNum || 1)} />
-      )}
-
-      {activeTab === 'merge' && (
-        <MergeTab onLoadMergedInViewer={(path) => handleOpenFile(path)} />
-      )}
-
-      {activeTab === 'split' && (
-        <SplitTab onLoadFileInViewer={(path) => handleOpenFile(path)} />
+      {activeTab === 'organizer' && (
+        <PageManagerTab onOpenInViewer={(path, pageNum) => handleOpenFile(path, pageNum || 1)} />
       )}
 
       {/* Floating Notification Toast */}

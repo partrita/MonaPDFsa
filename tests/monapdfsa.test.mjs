@@ -98,8 +98,8 @@ describe('MonaPDFsa Unit & Integration Tests', () => {
     });
   });
 
-  // 4. 통합 페이지 스튜디오 (Page Studio) 데이터 조작 로직 테스트
-  describe('Page Studio Reordering & Grouping Logic', () => {
+  // 4. 페이지 재배치 및 그룹핑 조작 로직 테스트
+  describe('Page Reordering & Grouping Logic', () => {
     test('페이지 드래그 재배치 로직', () => {
       const pages = [
         { id: 'p1', num: 1 },
@@ -155,11 +155,9 @@ describe('MonaPDFsa Unit & Integration Tests', () => {
   // 5. 보안 가림 (Redaction OCR 차단) 텍스트 파기 로직 테스트
   describe('Redaction Sanitization Logic', () => {
     function sanitizeTextOperations(operations, redactionBox) {
-      // Bounding box [x, y, w, h]
       const { x: rx, y: ry, w: rw, h: rh } = redactionBox;
       return operations.map((op) => {
         if (op.type === 'Tj') {
-          // op.x, op.y가 redaction 영역 내에 있으면 빈 문자열로 치환
           if (op.x >= rx && op.x <= rx + rw && op.y >= ry && op.y <= ry + rh) {
             return { ...op, text: '' };
           }

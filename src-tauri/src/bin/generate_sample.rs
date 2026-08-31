@@ -18,7 +18,7 @@ fn main() {
 
     let sample_texts = [
         vec![
-            "CONFIDENTIAL DOCUMENT - MONAPDFSA STUDIO",
+            "CONFIDENTIAL DOCUMENT - MONAPDFSA",
             "Page 1: Project Overview & Secret Credentials",
             "API_KEY: sk-secret-9988224411aaccbb-production",
             "User Password: SuperSecretPassword123!",
@@ -34,11 +34,11 @@ fn main() {
             "Use the Blackout Tool to cover this financial report.",
         ],
         vec![
-            "MONAPDFSA STUDIO - PAGE 3",
+            "MONAPDFSA - PAGE 3",
             "PDF Merge, Split & Drag-and-Drop Page Organizer",
             "This document contains 3 distinct pages.",
             "You can test splitting this document into individual pages,",
-            "reordering them in Page Studio, or redacting sensitive data!",
+            "reordering them in Page Organizer, or redacting sensitive data!",
         ],
     ];
 

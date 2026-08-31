@@ -1,11 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
-import { PageStudioItem } from '../types';
+import { PageItem } from '../types';
 import { generateThumbnailFromBase64 } from '../utils/pdfRenderer';
 import {
   LayoutGrid,
-  Plus,
   RotateCw,
   RotateCcw,
   Trash2,
@@ -16,17 +15,16 @@ import {
   AlertCircle,
   Loader2,
   FilePlus,
-  Layers,
   ArrowLeftRight,
   GripVertical,
 } from 'lucide-react';
 
-interface PageStudioTabProps {
+interface PageManagerTabProps {
   onOpenInViewer: (filePath: string, pageNum?: number) => void;
 }
 
-export const PageStudioTab: React.FC<PageStudioTabProps> = ({ onOpenInViewer }) => {
-  const [pages, setPages] = useState<PageStudioItem[]>([]);
+export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }) => {
+  const [pages, setPages] = useState<PageItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string; path?: string } | null>(null);
@@ -50,7 +48,7 @@ export const PageStudioTab: React.FC<PageStudioTabProps> = ({ onOpenInViewer }) 
       setIsLoading(true);
       setStatusMessage(null);
 
-      const newPages: PageStudioItem[] = [];
+      const newPages: PageItem[] = [];
 
       for (const p of filePaths) {
         let fileInfo: any;
@@ -105,7 +103,6 @@ export const PageStudioTab: React.FC<PageStudioTabProps> = ({ onOpenInViewer }) 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
-    // 드래그 고스트 이미지 투명도 조정
     if (e.currentTarget instanceof HTMLElement) {
       e.dataTransfer.setData('text/plain', index.toString());
     }
@@ -249,8 +246,8 @@ export const PageStudioTab: React.FC<PageStudioTabProps> = ({ onOpenInViewer }) 
       );
 
       // 분할 그룹 분리
-      const groups: PageStudioItem[][] = [];
-      let currentGroup: PageStudioItem[] = [];
+      const groups: PageItem[][] = [];
+      let currentGroup: PageItem[] = [];
 
       for (let i = 0; i < pages.length; i++) {
         currentGroup.push(pages[i]);
@@ -313,7 +310,7 @@ export const PageStudioTab: React.FC<PageStudioTabProps> = ({ onOpenInViewer }) 
 
   return (
     <div className="flex-1 flex flex-col h-full bg-gray-50 dark:bg-gray-950 overflow-hidden select-none">
-      {/* Studio Header Toolbar */}
+      {/* Header Toolbar */}
       <div className="px-6 py-3.5 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between shadow-sm shrink-0 z-10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20">
@@ -321,7 +318,7 @@ export const PageStudioTab: React.FC<PageStudioTabProps> = ({ onOpenInViewer }) 
           </div>
           <div>
             <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-              통합 페이지 스튜디오 (Unified Page Studio)
+              PDF 페이지 관리
               <span className="text-[11px] font-normal px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400">
                 총 {pages.length}페이지
               </span>

@@ -34,8 +34,8 @@ export interface MergeItem {
   pageCount?: number;
 }
 
-/// 통합 페이지 관리(Page Studio)의 개별 페이지 카드 모델
-export interface PageStudioItem {
+/// 통합 페이지 관리의 개별 페이지 카드 모델
+export interface PageItem {
   id: string;
   sourceFilePath: string;
   sourceFileName: string;
@@ -44,3 +44,6 @@ export interface PageStudioItem {
   thumbnailUrl?: string;
   isSplitBreak?: boolean; // 해당 페이지 바로 뒤에서 분할할지 여부
 }
+
+// 하위 호환성을 위한 별칭
+export type PageStudioItem = PageItem;

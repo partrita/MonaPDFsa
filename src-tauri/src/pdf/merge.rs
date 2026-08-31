@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 
-/// 통합 페이지 관리(Page Studio)에서 각 페이지의 원본 위치 및 회전 각도를 나타내는 명세 구조체
+/// 통합 페이지 관리에서 각 페이지의 원본 위치 및 회전 각도를 나타내는 명세 구조체
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageOrganizeSpec {
     /// 원본 PDF 파일 경로
@@ -96,7 +96,7 @@ pub fn merge_pdfs(input_paths: &[String], output_path: &str) -> Result<String, S
     Ok(output_path.to_string())
 }
 
-/// 통합 페이지 스튜디오(Page Studio)의 드래그 앤 드롭 재배치, 페이지 삭제, 회전, 다중 문서 삽입 결과를
+/// 통합 페이지 관리의 드래그 앤 드롭 재배치, 페이지 삭제, 회전, 다중 문서 삽입 결과를
 /// 하나의 최종 PDF 파일로 내보냅니다.
 pub fn organize_and_export_pages(
     page_specs: &[PageOrganizeSpec],

@@ -73,7 +73,7 @@ pub fn cmd_pdf_split(
     split_pdf(&input_path, &ranges, &output_dir, &output_prefix)
 }
 
-/// 통합 페이지 스튜디오(Page Studio)의 드래그 앤 드롭 재배치, 회전, 삭제 결과에 따라
+/// 통합 페이지 관리의 드래그 앤 드롭 재배치, 회전, 삭제 결과에 따라
 /// 다중 문서의 임의 페이지들을 새로운 PDF로 조립하여 내보내는 Tauri 커맨드
 #[tauri::command]
 pub fn cmd_pdf_organize_and_export(
