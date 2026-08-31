@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "test": "node --test tests/monapdfsa.test.mjs",
+    "test:rust": "cargo test -p monapdfsa-core",
+    "redact:example": "cargo run -p monapdfsa-core --bin redact_cli",
+    "sample:generate": "cargo run -p monapdfsa-core --bin generate_sample",
     "build": "npm test && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri"

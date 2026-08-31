@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
-use crate::pdf::merge::{merge_pdfs, organize_and_export_pages, PageOrganizeSpec};
-use crate::pdf::redact::{apply_redactions, RedactionRegion};
-use crate::pdf::split::{split_pdf, SplitRange};
+use monapdfsa_core::pdf::merge::{merge_pdfs, organize_and_export_pages, PageOrganizeSpec};
+use monapdfsa_core::pdf::redact::{apply_redactions, RedactionRegion};
+use monapdfsa_core::pdf::split::{split_pdf, SplitRange};
 
 /// 프론트엔드로 반환되는 PDF 파일 메타데이터 및 Base64 바이너리 정보
 #[derive(Debug, Serialize, Deserialize)]

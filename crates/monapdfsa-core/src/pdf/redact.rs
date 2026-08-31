@@ -204,7 +204,7 @@ fn process_page_structural_redaction(
     page_id: ObjectId,
     page_num: u32,
     regions: &[&RedactionRegion],
-    max_id: &mut u64,
+    max_id: &mut u32,
 ) -> Result<(), String> {
     if regions.is_empty() {
         return Ok(());
@@ -262,6 +262,7 @@ fn process_page_structural_redaction(
         let mut line_x = 0.0f64;
         let mut line_y = 0.0f64;
         let mut font_size = 12.0f64;
+        let mut leading = 14.4f64;
 
         for op in &mut content.operations {
             match op.operator.as_str() {
@@ -271,6 +272,15 @@ fn process_page_structural_redaction(
                             font_size = sz as f64;
                         } else if let Ok(sz) = op.operands[1].as_i64() {
                             font_size = sz as f64;
+                        }
+                    }
+                }
+                "TL" => {
+                    if let Some(first) = op.operands.first() {
+                        if let Ok(l) = first.as_float() {
+                            leading = l as f64;
+                        } else if let Ok(l) = first.as_i64() {
+                            leading = l as f64;
                         }
                     }
                 }
@@ -292,10 +302,13 @@ fn process_page_structural_redaction(
                         line_y += ty;
                         text_x = line_x;
                         text_y = line_y;
+                        if op.operator == "TD" {
+                            leading = -ty;
+                        }
                     }
                 }
                 "T*" => {
-                    line_y -= font_size;
+                    line_y -= leading;
                     text_x = line_x;
                     text_y = line_y;
                 }

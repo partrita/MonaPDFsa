@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "crates/monapdfsa-core",
+    "src-tauri",
+]
+resolver = "2"

@@ -1,3 +1,9 @@
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "pypdf>=6.16.2",
+# ]
+# ///
 import pypdf
 import os
 
@@ -62,5 +68,4 @@ def redact_file(in_path, out_path):
     assert '$14,250,000' not in t2
     print(f"SUCCESS creating {out_path}!")
 
-redact_file('examples/sample_document.pdf', 'examples/sample_documents_redacut.pdf')
 redact_file('examples/sample_document.pdf', 'examples/sample_document_redacted.pdf')

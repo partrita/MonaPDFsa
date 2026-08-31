@@ -1,5 +1,5 @@
 pub mod commands;
-pub mod pdf;
+pub use monapdfsa_core::pdf;
 
 /// MonaPDFsa Tauri 애플리케이션 진입점 및 플러그인/IPC 핸들러 초기화 함수
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
