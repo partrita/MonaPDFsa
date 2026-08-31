@@ -52,14 +52,14 @@ fn main() {
 
     println!("📄 입력 원본 문서: {}", input_path);
 
-    let (output_path, output_path_alt) = if Path::new("examples").exists() || Path::new("Cargo.toml").exists() && Path::new("src").exists() && !Path::new("../../examples").exists() {
+    let output_path = if Path::new("examples").exists() || Path::new("Cargo.toml").exists() && Path::new("src").exists() && !Path::new("../../examples").exists() {
         let _ = fs::create_dir_all("examples");
-        ("examples/sample_documents_redacut.pdf", "examples/sample_document_redacted.pdf")
+        "examples/sample_document_redacted.pdf"
     } else if Path::new("../../examples").exists() {
-        ("../../examples/sample_documents_redacut.pdf", "../../examples/sample_document_redacted.pdf")
+        "../../examples/sample_document_redacted.pdf"
     } else {
         let _ = fs::create_dir_all("examples");
-        ("examples/sample_documents_redacut.pdf", "examples/sample_document_redacted.pdf")
+        "examples/sample_document_redacted.pdf"
     };
 
     // 1. 모자이크 이미지 데이터 URL 생성
@@ -126,12 +126,7 @@ fn main() {
     apply_redactions(input_path, output_path, &redactions)
         .expect("가림 처리 적용 실패!");
 
-    // 동일한 결과를 sample_document_redacted.pdf 파일로도 복사
-    let _ = fs::copy(output_path, output_path_alt);
-
-    println!("✅ 가림 처리 완료! 생성된 파일:");
-    println!("   1) {}", output_path);
-    println!("   2) {}", output_path_alt);
+    println!("✅ 가림 처리 완료! 생성된 파일: {}", output_path);
 
     // 4. 보안 검증: 가림 처리된 PDF 내부 텍스트 검증
     println!("\n🔍 [보안 및 무결성 자동 검증]");
