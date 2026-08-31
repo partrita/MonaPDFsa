@@ -117,6 +117,27 @@ describe('MonaPDFsa Unit & Integration Tests', () => {
       assert.equal(updated[2].id, 'p2');
     });
 
+    test('1-클릭 좌우 화살표 순서 이동 로직', () => {
+      function movePage(items, fromIndex, toIndex) {
+        if (toIndex < 0 || toIndex >= items.length || fromIndex === toIndex) return items;
+        const next = [...items];
+        const [item] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, item);
+        return next;
+      }
+
+      const list = [{ id: 'A' }, { id: 'B' }, { id: 'C' }];
+      // B를 왼쪽으로 한 칸 이동 (인덱스 1 -> 0)
+      const movedLeft = movePage(list, 1, 0);
+      assert.equal(movedLeft[0].id, 'B');
+      assert.equal(movedLeft[1].id, 'A');
+      assert.equal(movedLeft[2].id, 'C');
+
+      // A(인덱스 0)를 더 왼쪽으로 이동 시도 시 경계값 안전 유지
+      const invalidMove = movePage(list, 0, -1);
+      assert.equal(invalidMove[0].id, 'A');
+    });
+
     test('페이지 회전 각도 정규화', () => {
       function rotateAngle(current, delta) {
         const next = (current + delta) % 360;

@@ -2,6 +2,7 @@ import React from 'react';
 import {
   FolderOpen,
   Save,
+  XCircle,
   ChevronLeft,
   ChevronRight,
   ZoomIn,
@@ -19,6 +20,7 @@ import { RedactionMode } from '../types';
 interface ToolbarProps {
   onOpenFile: () => void;
   onSaveFile: () => void;
+  onCloseFile?: () => void;
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
@@ -40,6 +42,7 @@ interface ToolbarProps {
 export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenFile,
   onSaveFile,
+  onCloseFile,
   currentPage,
   totalPages,
   onPageChange,
@@ -87,6 +90,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             </span>
           )}
         </button>
+
+        {hasDocument && onCloseFile && (
+          <button
+            onClick={onCloseFile}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 hover:bg-red-50 dark:bg-gray-800 dark:hover:bg-red-950/40 text-gray-600 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400 font-medium border border-gray-200 dark:border-gray-700 transition active:scale-95"
+            title="현재 열린 문서를 닫고 초기화"
+          >
+            <XCircle className="w-4 h-4 text-red-500" />
+            <span>문서 닫기</span>
+          </button>
+        )}
       </div>
 
       <div className="h-5 w-[1px] bg-gray-200 dark:bg-gray-700 mx-1" />

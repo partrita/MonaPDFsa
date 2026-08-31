@@ -151,6 +151,19 @@ export default function App() {
     }
   }, [loadedPdf, redactions]);
 
+  // Close & clear loaded PDF
+  const handleCloseFile = useCallback(() => {
+    setLoadedPdf(null);
+    setTotalPages(1);
+    setCurrentPage(1);
+    setRedactions([]);
+    docManagerRef.current.destroy();
+    setNotification({
+      type: 'success',
+      message: '열려 있던 PDF 문서를 닫았습니다. 새로운 PDF 파일을 열어주세요.',
+    });
+  }, []);
+
   // Native cross-platform drag-and-drop listener (Windows Explorer, macOS Finder, Linux File Manager)
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -281,6 +294,7 @@ export default function App() {
           <Toolbar
             onOpenFile={() => handleOpenFile()}
             onSaveFile={handleSaveFile}
+            onCloseFile={handleCloseFile}
             currentPage={currentPage}
             totalPages={totalPages}
             onPageChange={handlePageChange}

@@ -17,6 +17,8 @@ import {
   FilePlus,
   ArrowLeftRight,
   GripVertical,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 interface PageManagerTabProps {
@@ -103,13 +105,12 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
-    if (e.currentTarget instanceof HTMLElement) {
-      e.dataTransfer.setData('text/plain', index.toString());
-    }
+    e.dataTransfer.setData('text/plain', String(index));
   };
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
     if (dragOverIndex !== index) {
       setDragOverIndex(index);
@@ -118,17 +119,24 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
 
   const handleDrop = (e: React.DragEvent, targetIndex: number) => {
     e.preventDefault();
-    if (draggedIndex === null || draggedIndex === targetIndex) {
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      return;
+    e.stopPropagation();
+
+    let sourceIndex = draggedIndex;
+    if (sourceIndex === null) {
+      const data = e.dataTransfer.getData('text/plain');
+      if (data !== '') {
+        const parsed = parseInt(data, 10);
+        if (!isNaN(parsed)) sourceIndex = parsed;
+      }
     }
 
-    const updated = [...pages];
-    const [movedItem] = updated.splice(draggedIndex, 1);
-    updated.splice(targetIndex, 0, movedItem);
+    if (sourceIndex !== null && sourceIndex !== targetIndex && sourceIndex >= 0 && sourceIndex < pages.length) {
+      const updated = [...pages];
+      const [movedItem] = updated.splice(sourceIndex, 1);
+      updated.splice(targetIndex, 0, movedItem);
+      setPages(updated);
+    }
 
-    setPages(updated);
     setDraggedIndex(null);
     setDragOverIndex(null);
   };
@@ -136,6 +144,15 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
   const handleDragEnd = () => {
     setDraggedIndex(null);
     setDragOverIndex(null);
+  };
+
+  // 1-클릭 페이지 순서 이동 (이전/다음 위치로 이동)
+  const handleMovePage = (fromIndex: number, toIndex: number) => {
+    if (toIndex < 0 || toIndex >= pages.length || fromIndex === toIndex) return;
+    const updated = [...pages];
+    const [movedItem] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, movedItem);
+    setPages(updated);
   };
 
   // 개별 페이지 회전 (90도)
@@ -465,12 +482,16 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
               return (
                 <div
                   key={item.id}
-                  draggable
+                  draggable={true}
                   onDragStart={(e) => handleDragStart(e, index)}
                   onDragOver={(e) => handleDragOver(e, index)}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    setDragOverIndex(index);
+                  }}
                   onDrop={(e) => handleDrop(e, index)}
                   onDragEnd={handleDragEnd}
-                  className={`group relative flex flex-col bg-white dark:bg-gray-900 rounded-2xl border transition-all duration-200 cursor-grab active:cursor-grabbing ${
+                  className={`group relative flex flex-col bg-white dark:bg-gray-900 rounded-2xl border transition-all duration-200 select-none cursor-grab active:cursor-grabbing ${
                     isDragging
                       ? 'opacity-40 scale-95 border-amber-500 shadow-none'
                       : isOver
@@ -479,23 +500,24 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
                   }`}
                 >
                   {/* Sequence Badge */}
-                  <div className="absolute -top-2.5 -left-2.5 z-20 w-6 h-6 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-black text-[11px] flex items-center justify-center shadow-md">
+                  <div className="absolute -top-2.5 -left-2.5 z-20 w-6 h-6 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-black text-[11px] flex items-center justify-center shadow-md pointer-events-none">
                     {index + 1}
                   </div>
 
                   {/* Drag Handle Indicator */}
-                  <div className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900/80 text-white p-1 rounded-lg">
+                  <div className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900/80 text-white p-1 rounded-lg pointer-events-none">
                     <GripVertical className="w-3.5 h-3.5" />
                   </div>
 
                   {/* Thumbnail Image Container */}
-                  <div className="p-3 pb-1 flex items-center justify-center min-h-[160px] bg-gray-100/60 dark:bg-gray-950/60 rounded-t-2xl overflow-hidden relative">
+                  <div className="p-3 pb-1 flex items-center justify-center min-h-[160px] bg-gray-100/60 dark:bg-gray-950/60 rounded-t-2xl overflow-hidden relative pointer-events-none">
                     {item.thumbnailUrl ? (
                       <img
                         src={item.thumbnailUrl}
                         alt={`Page ${item.sourcePageIndex}`}
+                        draggable={false}
                         style={{ transform: `rotate(${item.rotation}deg)` }}
-                        className="max-h-[150px] w-auto object-contain rounded shadow-sm transition-transform duration-200"
+                        className="max-h-[150px] w-auto object-contain rounded shadow-sm transition-transform duration-200 pointer-events-none"
                       />
                     ) : (
                       <div className="flex items-center justify-center h-32 text-gray-400">
@@ -522,10 +544,46 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
                       </span>
                     </div>
 
-                    {/* Card Control Buttons */}
+                    {/* Reorder Arrows + Card Control Buttons */}
                     <div className="flex items-center justify-between pt-1 border-t border-gray-50 dark:border-gray-850">
+                      {/* Quick Reorder Arrows */}
                       <div className="flex items-center gap-0.5">
                         <button
+                          type="button"
+                          draggable={false}
+                          disabled={index === 0}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMovePage(index, index - 1);
+                          }}
+                          className="p-1 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/40 text-gray-400 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-gray-400 rounded transition"
+                          title="앞으로 이동"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          draggable={false}
+                          disabled={index === pages.length - 1}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMovePage(index, index + 1);
+                          }}
+                          className="p-1 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/40 text-gray-400 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-gray-400 rounded transition"
+                          title="뒤로 이동"
+                        >
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Rotate & Split Controls */}
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          draggable={false}
+                          onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleRotatePage(index, 90);
@@ -536,16 +594,9 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
                           <RotateCw className="w-3 h-3" />
                         </button>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRotatePage(index, -90);
-                          }}
-                          className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 rounded transition"
-                          title="반시계방향 90도 회전"
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                        </button>
-                        <button
+                          type="button"
+                          draggable={false}
+                          onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleToggleSplitBreak(index);
@@ -559,10 +610,10 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
                         >
                           <Scissors className="w-3 h-3" />
                         </button>
-                      </div>
-
-                      <div className="flex items-center gap-0.5">
                         <button
+                          type="button"
+                          draggable={false}
+                          onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => {
                             e.stopPropagation();
                             onOpenInViewer(item.sourceFilePath, item.sourcePageIndex);
@@ -573,6 +624,9 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
                           <Eye className="w-3 h-3" />
                         </button>
                         <button
+                          type="button"
+                          draggable={false}
+                          onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleRemovePage(item.id);
