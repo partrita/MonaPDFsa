@@ -82,7 +82,7 @@ npm test
 npm run build
 ```
 
-### 크로스 플랫폼 앱 실행 및 패키징
+### 로컬 데스크톱 앱 실행 및 패키징
 
 #### Windows
 ```powershell
@@ -101,6 +101,19 @@ cargo tauri build
 cargo tauri dev
 cargo tauri build --bundles deb
 ```
+
+---
+
+## 🚀 GitHub Actions CI / Release 파이프라인
+
+본 저장소는 **“빌드는 매 커밋마다 자동 검증, 릴리스는 사람이 원하는 시점에 수동 생성”** 패턴을 따릅니다:
+
+1. **자동 CI 빌드 및 아티팩트 저장 ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))**:
+   - `main` 브랜치로 `push`되거나 `pull_request` 생성 시 자동으로 실행됩니다.
+   - 단위 테스트(`npm test`)를 수행하고 Windows, macOS, Linux 번들을 빌드하여 **GitHub Actions Artifacts**로 업로드합니다.
+2. **수동 릴리스 발행 ([`.github/workflows/release.yml`](.github/workflows/release.yml))**:
+   - GitHub 저장소 **Actions** 탭에서 `Manual Release` 워크플로우를 선택하고 **Run workflow** 버튼을 클릭하여 원하는 시점에 릴리스를 생성할 수 있습니다.
+   - 버전(예: `0.1.0`), 드래프트(Draft) 여부, 프리릴리스(Prerelease) 옵션을 선택할 수 있으며, Git 버전 태그(`v*`) 푸시 시에도 자동으로 트리거됩니다.
 
 ---
 

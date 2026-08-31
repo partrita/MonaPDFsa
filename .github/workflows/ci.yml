@@ -1,29 +1,36 @@
-name: "Manual Release"
+name: "CI - Test & Build Artifacts"
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release Version (e.g. 0.1.0 or v0.1.0)'
-        required: true
-        default: '0.1.0'
-      draft:
-        description: 'Create Draft Release'
-        type: boolean
-        default: true
-      prerelease:
-        description: 'Mark as Pre-release'
-        type: boolean
-        default: false
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  publish-release:
-    name: Publish Release (${{ matrix.name }})
-    permissions:
-      contents: write
+  test:
+    name: Run Unit Tests & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Test Suite
+        run: npm test
+
+  build-artifacts:
+    name: Build (${{ matrix.name }})
+    needs: test
     strategy:
       fail-fast: false
       matrix:
@@ -63,14 +70,19 @@ jobs:
       - name: Install Frontend dependencies
         run: npm ci
 
-      - name: Build & Publish Release
+      - name: Build Tauri Desktop App (CI Only)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.event.inputs.version && (startsWith(github.event.inputs.version, 'v') && github.event.inputs.version || format('v{0}', github.event.inputs.version)) || 'v__VERSION__' }}
-          releaseName: 'MonaPDFsa ${{ github.event.inputs.version && (startsWith(github.event.inputs.version, 'v') && github.event.inputs.version || format('v{0}', github.event.inputs.version)) || 'v__VERSION__' }}'
-          releaseBody: 'Cross-platform desktop release for Windows (.exe/.msi), macOS (.dmg/.app), and Linux (.deb/.AppImage).'
-          releaseDraft: ${{ github.event.inputs.draft != '' && github.event.inputs.draft == 'true' || true }}
-          prerelease: ${{ github.event.inputs.prerelease == 'true' }}
+          includeRelease: false
           args: ${{ matrix.args }}
+
+      - name: Upload Installer Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MonaPDFsa-${{ matrix.name }}-bundles
+          path: |
+            src-tauri/target/release/bundle/
+            src-tauri/target/*/release/bundle/
+          if-no-files-found: warn
