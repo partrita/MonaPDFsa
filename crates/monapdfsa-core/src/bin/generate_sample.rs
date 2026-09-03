@@ -49,7 +49,7 @@ fn main() {
         ],
     ];
 
-    for (_i, lines) in sample_texts.iter().enumerate() {
+    for lines in sample_texts.iter() {
         let content_id = doc.new_object_id();
         let page_id = doc.new_object_id();
 
@@ -107,7 +107,7 @@ fn main() {
         if let Some(parent) = Path::new(path).parent() {
             let _ = fs::create_dir_all(parent);
         }
-        if let Ok(_) = doc.save(path) {
+        if doc.save(path).is_ok() {
             println!("✅ MonaPDFsa 샘플 문서 생성 성공: {}", path);
         }
     }

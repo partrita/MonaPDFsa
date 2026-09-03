@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Navbar, ActiveTab } from './components/Navbar';
 import { Toolbar } from './components/Toolbar';
 import { PdfViewer } from './components/PdfViewer';
@@ -9,7 +8,7 @@ import { RedactionSidebar } from './components/RedactionSidebar';
 import { PageManagerTab } from './components/PageManagerTab';
 import { PdfDocManager } from './utils/pdfRenderer';
 import { RedactionItem, RedactionMode, LoadedPdf } from './types';
-import { CheckCircle2, AlertCircle, X, FileUp } from 'lucide-react';
+import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 
 export default function App() {
   const [isDark, setIsDark] = useState(false);
@@ -26,7 +25,6 @@ export default function App() {
   const [redactions, setRedactions] = useState<RedactionItem[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Sync theme with html class
@@ -39,18 +37,14 @@ export default function App() {
   }, [isDark]);
 
   // Open PDF file handler
-  const handleOpenFile = useCallback(async (specificPath?: string, targetPage: number = 1) => {
+  const handleOpenFile = useCallback(async () => {
     try {
-      let targetPath = specificPath;
-
-      if (!targetPath) {
-        const selected = await open({
-          multiple: false,
-          filters: [{ name: 'PDF Documents', extensions: ['pdf'] }],
-        });
-        if (!selected || Array.isArray(selected)) return;
-        targetPath = selected;
-      }
+      const selected = await open({
+        multiple: false,
+        filters: [{ name: 'PDF Documents', extensions: ['pdf'] }],
+      });
+      if (!selected || Array.isArray(selected)) return;
+      const targetPath = selected;
 
       const info: any = await invoke('read_pdf_file', { path: targetPath });
       const pages = await docManagerRef.current.loadFromBase64(info.base64_data);
@@ -64,7 +58,7 @@ export default function App() {
       });
 
       setTotalPages(pages);
-      setCurrentPage(Math.min(pages, Math.max(1, targetPage)));
+      setCurrentPage(1);
       setScale(1.0);
       setRedactions([]);
       setActiveTab('viewer');
@@ -164,41 +158,6 @@ export default function App() {
     });
   }, []);
 
-  // Native cross-platform drag-and-drop listener (Windows Explorer, macOS Finder, Linux File Manager)
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-
-    async function setupDragDrop() {
-      try {
-        const appWindow = getCurrentWindow();
-        unlisten = await appWindow.onDragDropEvent((event) => {
-          if (event.payload.type === 'enter' || event.payload.type === 'over') {
-            setIsDraggingOver(true);
-          } else if (event.payload.type === 'leave') {
-            setIsDraggingOver(false);
-          } else if (event.payload.type === 'drop') {
-            setIsDraggingOver(false);
-            const paths = event.payload.paths;
-            if (paths && paths.length > 0) {
-              const firstPdf = paths.find((p) => p.toLowerCase().endsWith('.pdf'));
-              if (firstPdf) {
-                handleOpenFile(firstPdf);
-              }
-            }
-          }
-        });
-      } catch (e) {
-        // Fallback for browser testing
-      }
-    }
-
-    setupDragDrop();
-
-    return () => {
-      if (unlisten) unlisten();
-    };
-  }, [handleOpenFile]);
-
   // Cross-platform keyboard shortcuts (Cmd on Mac, Ctrl on Win/Linux)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -270,15 +229,6 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-hidden font-sans relative">
-      {/* Drag & Drop Visual Overlay */}
-      {isDraggingOver && (
-        <div className="absolute inset-0 bg-sky-600/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white pointer-events-none animate-in fade-in duration-150">
-          <FileUp className="w-16 h-16 animate-bounce mb-3" />
-          <h2 className="text-xl font-bold">PDF 파일을 여기에 놓으세요</h2>
-          <p className="text-sm text-sky-100 mt-1">즉시 뷰어에서 문서가 열립니다</p>
-        </div>
-      )}
-
       {/* Top Navbar */}
       <Navbar
         activeTab={activeTab}
@@ -343,7 +293,7 @@ export default function App() {
       )}
 
       {activeTab === 'organizer' && (
-        <PageManagerTab onOpenInViewer={(path, pageNum) => handleOpenFile(path, pageNum || 1)} />
+        <PageManagerTab />
       )}
 
       {/* Floating Notification Toast */}

@@ -31,7 +31,7 @@ export const RedactionSidebar: React.FC<RedactionSidebarProps> = ({
   return (
     <aside className="w-72 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col shrink-0 select-none text-xs z-20 shadow-lg">
       {/* Sidebar Header */}
-      <div className="h-13 px-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+      <div className="h-[52px] px-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
         <div className="flex items-center gap-2 font-bold text-gray-900 dark:text-gray-100">
           <span>가림 영역 목록</span>
           <span className="px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400 font-semibold text-[10px]">
@@ -48,7 +48,7 @@ export const RedactionSidebar: React.FC<RedactionSidebarProps> = ({
 
       {/* Global Actions */}
       {redactions.length > 0 && (
-        <div className="p-3 border-b border-gray-100 dark:border-gray-800/80 flex items-center gap-2 bg-gray-50/50 dark:bg-gray-850/50">
+        <div className="p-3 border-b border-gray-100 dark:border-gray-800/80 flex items-center gap-2 bg-gray-50/50 dark:bg-gray-800/50">
           {currentPageItems.length > 0 && (
             <button
               onClick={() => onClearPageRedactions(currentPage)}

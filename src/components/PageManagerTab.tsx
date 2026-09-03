@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { PageItem } from '../types';
@@ -10,7 +10,6 @@ import {
   Trash2,
   Scissors,
   Download,
-  Eye,
   CheckCircle2,
   AlertCircle,
   Loader2,
@@ -22,21 +21,45 @@ import {
 } from 'lucide-react';
 
 interface PageManagerTabProps {
-  onOpenInViewer: (filePath: string, pageNum?: number) => void;
 }
 
-export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }) => {
+export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
   const [pages, setPages] = useState<PageItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string; path?: string } | null>(null);
 
-  // Drag and drop reordering state
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  // Mouse drag reorder state (pointer based, no HTML5 DnD).
+  // dragId = moving card id. dropTarget = insert line position.
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ index: number | null; side: 'before' | 'after' } | null>(null);
   const fileCacheRef = useRef<Map<string, { base64: string; count: number }>>(new Map());
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const pagesRef = useRef<PageItem[]>([]);
+  const dropTargetRef = useRef<{ index: number | null; side: 'before' | 'after' } | null>(null);
+  const mouseDragRef = useRef<{
+    id: string;
+    sourceIndex: number;
+    startX: number;
+    startY: number;
+    active: boolean;
+  } | null>(null);
 
-  // PDF 파일 추가 핸들러
+  // Keep latest pages for window mouse handlers.
+  useEffect(() => {
+    pagesRef.current = pages;
+  }, [pages]);
+
+  // Cleanup mouse listeners on unmount.
+  useEffect(() => {
+    return () => {
+      mouseDragRef.current = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, []);
+
+  // Add PDF files and make page cards.
   const handleAddFiles = async () => {
     try {
       const selected = await open({
@@ -70,7 +93,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
           });
         }
 
-        // 각 페이지 썸네일 생성 및 목록 추가
+        // Make thumbnail for each page and add to list.
         for (let pNum = 1; pNum <= fileInfo.page_count; pNum++) {
           const thumbUrl = await generateThumbnailFromBase64(fileInfo.base64_data, pNum, 220);
           newPages.push({
@@ -101,52 +124,140 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
     }
   };
 
-  // 드래그 앤 드롭 재배치 핸들러
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', String(index));
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = 'move';
-    if (dragOverIndex !== index) {
-      setDragOverIndex(index);
+  // Compute insert index from source, target, and line position.
+  const computeInsertIndex = (source: number, target: number, pos: 'before' | 'after') => {
+    if (source < target) {
+      return pos === 'before' ? target - 1 : target;
     }
+    return pos === 'before' ? target : target + 1;
   };
 
-  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const clearMouseDrag = () => {
+    mouseDragRef.current = null;
+    dropTargetRef.current = null;
+    setDragId(null);
+    setDropTarget(null);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
 
-    let sourceIndex = draggedIndex;
-    if (sourceIndex === null) {
-      const data = e.dataTransfer.getData('text/plain');
-      if (data !== '') {
-        const parsed = parseInt(data, 10);
-        if (!isNaN(parsed)) sourceIndex = parsed;
+  const setDropTargetBoth = (v: { index: number | null; side: 'before' | 'after' } | null) => {
+    dropTargetRef.current = v;
+    setDropTarget((prev) => {
+      if (!v && !prev) return prev;
+      if (v && prev && v.index === prev.index && v.side === prev.side) return prev;
+      return v;
+    });
+  };
+
+  const applyMouseDrop = () => {
+    const drag = mouseDragRef.current;
+    const target = dropTargetRef.current;
+    const list = pagesRef.current;
+    if (drag) {
+      const sourceIndex = list.findIndex((p) => p.id === drag.id);
+      if (drag.active && sourceIndex >= 0) {
+        if (!target || target.index === null) {
+          // Drop on empty area = move to end.
+          if (sourceIndex !== list.length - 1) {
+            const updated = [...list];
+            const [moved] = updated.splice(sourceIndex, 1);
+            updated.push(moved);
+            setPages(updated);
+          }
+        } else {
+          const targetIndex = target.index;
+          if (sourceIndex !== targetIndex) {
+            const insertAt = computeInsertIndex(sourceIndex, targetIndex, target.side);
+            if (insertAt !== sourceIndex) {
+              const updated = [...list];
+              const [moved] = updated.splice(sourceIndex, 1);
+              const clamped = Math.max(0, Math.min(updated.length, insertAt));
+              updated.splice(clamped, 0, moved);
+              setPages(updated);
+            }
+          }
+        }
       }
     }
-
-    if (sourceIndex !== null && sourceIndex !== targetIndex && sourceIndex >= 0 && sourceIndex < pages.length) {
-      const updated = [...pages];
-      const [movedItem] = updated.splice(sourceIndex, 1);
-      updated.splice(targetIndex, 0, movedItem);
-      setPages(updated);
-    }
-
-    setDraggedIndex(null);
-    setDragOverIndex(null);
+    clearMouseDrag();
   };
 
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
-    setDragOverIndex(null);
+  // Start mouse drag. Ignore button clicks and right click.
+  const handleCardMouseDown = (e: React.MouseEvent, index: number) => {
+    if (e.button !== 0) return;
+    const el = e.target as HTMLElement;
+    if (el.closest('button')) return;
+    const list = pagesRef.current;
+    if (index < 0 || index >= list.length) return;
+    const id = list[index].id;
+
+    mouseDragRef.current = {
+      id,
+      sourceIndex: index,
+      startX: e.clientX,
+      startY: e.clientY,
+      active: false,
+    };
+
+    const handleWindowMove = (ev: MouseEvent) => {
+      const drag = mouseDragRef.current;
+      if (!drag) return;
+      const dx = ev.clientX - drag.startX;
+      const dy = ev.clientY - drag.startY;
+      if (!drag.active) {
+        if (Math.hypot(dx, dy) < 6) return;
+        drag.active = true;
+        setDragId(drag.id);
+        document.body.style.cursor = 'grabbing';
+        document.body.style.userSelect = 'none';
+      }
+      ev.preventDefault();
+
+      // Auto scroll when mouse is near top or bottom of list.
+      const scroller = scrollRef.current;
+      if (scroller) {
+        const r = scroller.getBoundingClientRect();
+        if (ev.clientY < r.top + 70) scroller.scrollTop -= 14;
+        else if (ev.clientY > r.bottom - 70) scroller.scrollTop += 14;
+      }
+
+      // Find card under mouse.
+      const under = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.('[data-page-index]') as HTMLElement | null;
+      if (!under) {
+        setDropTargetBoth({ index: null, side: 'after' });
+        return;
+      }
+      const tIdx = Number(under.dataset.pageIndex);
+      if (Number.isNaN(tIdx)) {
+        setDropTargetBoth({ index: null, side: 'after' });
+        return;
+      }
+      const rect = under.getBoundingClientRect();
+      const side = ev.clientX - rect.left < rect.width / 2 ? 'before' : 'after';
+      setDropTargetBoth({ index: tIdx, side });
+    };
+
+    const handleWindowUp = () => {
+      window.removeEventListener('mousemove', handleWindowMove);
+      window.removeEventListener('mouseup', handleWindowUp);
+      // Read latest target from state via functional update trick:
+      // applyMouseDrop reads dropTarget from closure, so use timeout-free direct call.
+      // Use pagesRef + mouseDragRef which are current.
+      const drag = mouseDragRef.current;
+      if (!drag || !drag.active) {
+        clearMouseDrag();
+        return;
+      }
+      // Get target element one last time for accuracy.
+      applyMouseDrop();
+    };
+
+    window.addEventListener('mousemove', handleWindowMove);
+    window.addEventListener('mouseup', handleWindowUp);
   };
 
-  // 1-클릭 페이지 순서 이동 (이전/다음 위치로 이동)
+  // Move page by one step with arrow buttons.
   const handleMovePage = (fromIndex: number, toIndex: number) => {
     if (toIndex < 0 || toIndex >= pages.length || fromIndex === toIndex) return;
     const updated = [...pages];
@@ -155,7 +266,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
     setPages(updated);
   };
 
-  // 개별 페이지 회전 (90도)
+  // Rotate one page by 90 degrees.
   const handleRotatePage = (index: number, angle: number) => {
     setPages((prev) => {
       const next = [...prev];
@@ -169,7 +280,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
     });
   };
 
-  // 전체 페이지 일괄 회전
+  // Rotate all pages at once.
   const handleRotateAll = (angle: number) => {
     setPages((prev) =>
       prev.map((item) => {
@@ -182,23 +293,23 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
     );
   };
 
-  // 개별 페이지 삭제
+  // Remove one page.
   const handleRemovePage = (id: string) => {
     setPages((prev) => prev.filter((p) => p.id !== id));
   };
 
-  // 전체 페이지 초기화
+  // Clear all pages.
   const handleClearAll = () => {
     setPages([]);
     setStatusMessage(null);
   };
 
-  // 순서 역순 뒤집기
+  // Reverse page order.
   const handleReverseOrder = () => {
     setPages((prev) => [...prev].reverse());
   };
 
-  // 분할 구분점(Split Break) 토글
+  // Toggle split break after page.
   const handleToggleSplitBreak = (index: number) => {
     setPages((prev) => {
       const next = [...prev];
@@ -210,7 +321,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
     });
   };
 
-  // 현재 순서대로 병합 저장 (Export Merged)
+  // Export merged PDF in current order.
   const handleExportMerged = async () => {
     if (pages.length === 0) return;
 
@@ -252,7 +363,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
     }
   };
 
-  // 분할 구분점에 따라 개별 파일들로 저장 (Export Split)
+  // Export split PDFs by break points.
   const handleExportSplitByBreaks = async () => {
     if (pages.length === 0) return;
 
@@ -262,7 +373,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
         Math.max(pages[0].sourceFilePath.lastIndexOf('/'), pages[0].sourceFilePath.lastIndexOf('\\'))
       );
 
-      // 분할 그룹 분리
+      // Split pages into groups by break flag.
       const groups: PageItem[][] = [];
       let currentGroup: PageItem[] = [];
 
@@ -326,7 +437,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
   const splitBreakCount = pages.filter((p) => p.isSplitBreak).length;
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-gray-50 dark:bg-gray-950 overflow-hidden select-none">
+    <div className="relative flex-1 flex flex-col h-full bg-gray-50 dark:bg-gray-950 overflow-hidden select-none">
       {/* Header Toolbar */}
       <div className="px-6 py-3.5 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between shadow-sm shrink-0 z-10">
         <div className="flex items-center gap-3">
@@ -341,7 +452,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
               </span>
             </h2>
             <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-              페이지 추가/삭제/회전/병합 및 분할 내보내기
+              마우스로 카드를 드래그하여 순서 변경 • 추가/삭제/회전/병합 및 분할 내보내기
             </p>
           </div>
         </div>
@@ -437,20 +548,11 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
               )}
             </div>
           </div>
-
-          {statusMessage.path && (
-            <button
-              onClick={() => onOpenInViewer(statusMessage.path!)}
-              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium shadow-sm transition shrink-0"
-            >
-              뷰어에서 확인
-            </button>
-          )}
         </div>
       )}
 
       {/* Main Thumbnail Workspace Area */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
         {pages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-8">
             <div
@@ -474,39 +576,45 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-5 pb-12">
+          <div
+            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-5 pb-12 min-h-[200px]"
+          >
             {pages.map((item, index) => {
-              const isDragging = draggedIndex === index;
-              const isOver = dragOverIndex === index;
+              const isDragging = dragId === item.id;
+              const isOver = dropTarget !== null && dropTarget.index === index && dragId !== item.id;
+              const showBefore = isOver && dropTarget?.side === 'before';
+              const showAfter = isOver && dropTarget?.side === 'after';
 
               return (
                 <div
                   key={item.id}
-                  draggable={true}
-                  onDragStart={(e) => handleDragStart(e, index)}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  onDragEnter={(e) => {
-                    e.preventDefault();
-                    setDragOverIndex(index);
-                  }}
-                  onDrop={(e) => handleDrop(e, index)}
-                  onDragEnd={handleDragEnd}
-                  className={`group relative flex flex-col bg-white dark:bg-gray-900 rounded-2xl border transition-all duration-200 select-none cursor-grab active:cursor-grabbing ${
+                  data-page-index={index}
+                  title="마우스 왼쪽 버튼으로 잡고 끌어서 순서 변경"
+                  onMouseDown={(e) => handleCardMouseDown(e, index)}
+                  className={`group relative flex flex-col bg-white dark:bg-gray-900 rounded-2xl border-2 transition-all duration-150 select-none cursor-grab active:cursor-grabbing ${
                     isDragging
-                      ? 'opacity-40 scale-95 border-amber-500 shadow-none'
+                      ? 'opacity-40 scale-95 border-amber-500 border-dashed shadow-none'
                       : isOver
-                      ? 'border-2 border-amber-500 scale-105 shadow-xl ring-4 ring-amber-500/20'
-                      : 'border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-700'
+                      ? 'border-amber-500 shadow-xl shadow-amber-500/20 scale-[1.03]'
+                      : 'border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-lg hover:border-amber-300 dark:hover:border-amber-700'
                   }`}
                 >
+                  {/* Insert line before */}
+                  {showBefore && (
+                    <div className="absolute -left-4 top-1 bottom-1 w-2 rounded-full bg-amber-500 shadow-lg shadow-amber-500/40 z-30 pointer-events-none animate-pulse" />
+                  )}
+                  {/* Insert line after */}
+                  {showAfter && (
+                    <div className="absolute -right-4 top-1 bottom-1 w-2 rounded-full bg-amber-500 shadow-lg shadow-amber-500/40 z-30 pointer-events-none animate-pulse" />
+                  )}
                   {/* Sequence Badge */}
                   <div className="absolute -top-2.5 -left-2.5 z-20 w-6 h-6 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-black text-[11px] flex items-center justify-center shadow-md pointer-events-none">
                     {index + 1}
                   </div>
 
-                  {/* Drag Handle Indicator */}
-                  <div className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900/80 text-white p-1 rounded-lg pointer-events-none">
-                    <GripVertical className="w-3.5 h-3.5" />
+                  {/* Drag Handle Indicator - always visible for mouse affordance */}
+                  <div className="absolute top-2 right-2 z-20 opacity-70 group-hover:opacity-100 transition-opacity bg-gray-900/80 hover:bg-amber-500 text-white p-1.5 rounded-lg pointer-events-none cursor-grab" title="마우스로 잡고 이동">
+                    <GripVertical className="w-4 h-4" />
                   </div>
 
                   {/* Thumbnail Image Container */}
@@ -545,7 +653,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
                     </div>
 
                     {/* Reorder Arrows + Card Control Buttons */}
-                    <div className="flex items-center justify-between pt-1 border-t border-gray-50 dark:border-gray-850">
+                      <div className="flex items-center justify-between pt-1 border-t border-gray-50 dark:border-gray-800">
                       {/* Quick Reorder Arrows */}
                       <div className="flex items-center gap-0.5">
                         <button
@@ -616,19 +724,6 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
                           onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => {
                             e.stopPropagation();
-                            onOpenInViewer(item.sourceFilePath, item.sourcePageIndex);
-                          }}
-                          className="p-1 hover:bg-sky-50 text-gray-400 hover:text-sky-600 rounded transition"
-                          title="뷰어에서 열기 및 모자이크 편집"
-                        >
-                          <Eye className="w-3 h-3" />
-                        </button>
-                        <button
-                          type="button"
-                          draggable={false}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
                             handleRemovePage(item.id);
                           }}
                           className="p-1 hover:bg-red-50 text-gray-400 hover:text-red-600 rounded transition"
@@ -642,9 +737,19 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = ({ onOpenInViewer }
                 </div>
               );
             })}
+            {dragId && dropTarget?.index === null && (
+              <div className="flex items-center justify-center min-h-[200px] rounded-2xl border-2 border-dashed border-amber-500 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 text-xs font-bold animate-pulse">
+                여기에 놓으면 맨 끝으로 이동
+              </div>
+            )}
           </div>
         )}
       </div>
+      {dragId && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-gray-900/90 text-white text-xs font-semibold shadow-xl pointer-events-none">
+          마우스를 놓으면 순서가 변경됩니다
+        </div>
+      )}
     </div>
   );
 };

@@ -32,7 +32,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             }`}
         >
           <FileText className="w-4 h-4" />
-          <span>뷰어 & 모자이크</span>
+          <span>내용 가리기</span>
         </button>
 
         <button

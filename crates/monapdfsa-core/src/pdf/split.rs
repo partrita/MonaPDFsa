@@ -40,7 +40,7 @@ pub fn split_pdf(
 
     let mut generated_files = Vec::new();
 
-    for (_idx, range) in ranges.iter().enumerate() {
+    for range in ranges.iter() {
         let start = range.start.max(1);
         let end = range.end.min(total_pages);
         if start > end {
