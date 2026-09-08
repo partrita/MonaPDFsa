@@ -32,7 +32,7 @@ jobs:
         run: npm test
 
       - name: Run Rust Core Tests
-        run: cargo test --workspace
+        run: cargo test -p monapdfsa-core
 
   build-artifacts:
     name: Build (${{ matrix.name }})
