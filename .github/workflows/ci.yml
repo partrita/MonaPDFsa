@@ -89,5 +89,6 @@ jobs:
         with:
           name: MonaPDFsa-${{ matrix.name }}-bundles
           path: |
+            target/**/bundle/**/*
             src-tauri/target/**/bundle/**/*
           if-no-files-found: warn
