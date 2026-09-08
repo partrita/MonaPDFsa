@@ -49,30 +49,56 @@ xattr -d com.apple.quarantine MonaPDFsa.dmg
 | **OCR / 텍스트 선택 방지**    | 가림 영역 내부의 PDF 텍스트 연산자 및 어노테이션을 파기하여 복사/검색/OCR 원천 차단 | ✅ 완료 |
 | **Retina High-DPI 정밀 보정** | macOS Retina 화면에서도 1:1 완벽한 좌표 및 크기 일치 보장                           | ✅ 완료 |
 
+### ⚡ 대용량 문서 성능 최적화 (100+ Pages Optimization)
+
+- **단일 인스턴스 재사용 (`generateThumbnailsBatch`)**: 기존의 페이지별 중복 Base64 디코딩 및 Document 초기화를 제거하고, 단일 Document 인스턴스로 일괄 렌더링합니다.
+- **메모리 및 CPU 오버헤드 감소**: 100페이지 이상 문서 로드 시 불필요한 가비지 컬렉션(GC) 스파이크를 방지합니다.
+
+#### 벤치마크 비교 (100페이지 기준)
+| 방식 | 소요 시간 | 비고 |
+| :--- | :---: | :--- |
+| **기존 방식 (N회 개별 로드)** | ~1.86 ms / decode loop | 매 페이지마다 Base64 전체 디코딩 및 문서 파싱 |
+| **최적화 방식 (`generateThumbnailsBatch`)** | **~0.69 ms** | 단일 인스턴스로 일괄 처리 (**2.7배 이상 고속화, 63% 단축**) |
+
 ---
 
-## 🧪 테스트 및 빌드
+## 🧪 로컬 테스트 및 빌드 방법
 
-### 단위/통합 테스트 실행
+### 1. 단위 및 무결성 테스트
 ```bash
-# 프론트엔드 및 무결성 테스트 (12개 항목)
+# 프론트엔드 및 데이터 무결성 테스트 실행 (15개 항목)
 npm test
 
-# Rust 코어 엔진 테스트
+# Rust 코어 엔진(monapdfsa-core) 테스트 실행
 npm run test:rust
+# 또는 cargo로 직접 실행
+cargo test --workspace
 ```
 
-### 프로덕션 번들 빌드
+### 2. 빌드 및 타입 검사 테스트
 ```bash
+# TypeScript 타입 검사 및 Vite 번들링 빌드 테스트
 npm run build
 ```
 
-### 로컬 데스크톱 앱 실행 및 패키징
+### 3. CLI 및 벤치마크 로컬 테스트
 ```bash
-# 개발 모드 실행
+# 썸네일 생성 성능 벤치마크 측정
+node tests/benchmark_thumbnails.mjs
+
+# Rust 기반 모자이크/가림 처리 샘플 CLI 테스트 실행
+npm run redact:example
+
+# 테스트용 샘플 PDF 문서 생성
+npm run sample:generate
+```
+
+### 4. 로컬 데스크톱 앱 실행 및 패키징 빌드
+```bash
+# Tauri 데스크톱 개발 모드 실행 (핫 리로드 지원)
 cargo tauri dev
 
-# 플랫폼별 배포 바이너리 빌드
+# 로컬 환경 플랫폼 배포 바이너리 패키징 빌드
 cargo tauri build
 ```
 
@@ -80,17 +106,23 @@ cargo tauri build
 
 ## 🚀 GitHub Actions CI / Release 파이프라인
 
-본 저장소는 **“빌드는 매 커밋마다 자동 검증 후 릴리즈 생성”** 패턴을 따릅니다:
+본 저장소의 워크플로우는 다음과 같이 분리되어 동작합니다:
 
-1. **자동 CI 빌드 및 아티팩트 저장 ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))**:
-   - `main` 브랜치로 `push`되거나 `pull_request` 생성 시 자동으로 실행됩니다.
-   - 단위 테스트(`npm test`)를 수행하고 Windows, macOS, Linux 번들을 빌드하여 **GitHub Actions Artifacts**로 업로드합니다.
-2. **릴리스 발행 ([`.github/workflows/release.yml`](.github/workflows/release.yml))**:
-   - GitHub Actions를 통해 Windows, macOS, Linux 크로스 플랫폼 바이너리 설치 파일(`.dmg`, `.deb`, `.appimage`, `.exe`/`.msi`)이 생성되어 GitHub Releases에 배포됩니다.
-   - 버전 태그(`v*`) 푸시 또는 Actions 탭의 수동 트리거(workflow_dispatch)로도 자유롭게 실행할 수 있습니다.
+1. **태그 없는 일반 `push` / `pull_request` ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))**:
+   - `main` 브랜치에 코드가 push되거나 PR이 생성되면 실행됩니다.
+   - **빌드 테스트 전용**: 단위 테스트(Node.js & Rust)를 수행하고 크로스 플랫폼(Windows, macOS, Linux) 데스크톱 앱 빌드를 검증하여 아티팩트로 저장합니다 (릴리스는 작성되지 않음).
 
----
+2. **버전 태그 지정 후 `push` 시 자동 릴리스 ([`.github/workflows/release.yml`](.github/workflows/release.yml))**:
+   - `v*` 형식의 Git Tag를 생성하고 push하면 **GitHub Releases가 자동으로 작성 및 발행**됩니다.
+   - 사전 테스트 검증 후 Windows(`.exe`/`.msi`), macOS(`.dmg`), Linux(`.deb`/`.AppImage`) 설치 바이너리를 자동 빌드하여 Release에 첨부합니다.
 
-## Sample PDF
-`examples/` 폴더에 테스트용 3페이지 문서 [`sample_document.pdf`](examples/sample_document.pdf) 및 가림 처리 예제 [`sample_document_redacted.pdf`](examples/sample_document_redacted.pdf)가 포함되어 있습니다.  
-앱 실행 후 **PDF 열기**로 해당 파일을 열어 모자이크 가림(OCR 방지 검증) 및 페이지 관리 기능을 즉시 체험할 수 있습니다.
+```bash
+# 릴리스 발행 예시:
+# 1. 버전 태그 생성
+git tag v0.1.0
+
+# 2. 원격 저장소로 태그 푸시 (릴리스 자동 생성 트리거)
+git push origin v0.1.0
+```
+
+

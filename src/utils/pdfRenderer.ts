@@ -22,10 +22,7 @@ export class PdfDocManager {
 
   async loadFromBase64(base64Data: string): Promise<number> {
     const raw = atob(base64Data);
-    const uint8Array = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i++) {
-      uint8Array[i] = raw.charCodeAt(i);
-    }
+    const uint8Array = Uint8Array.from(raw, (c) => c.charCodeAt(0));
 
     const loadingTask = pdfjsLib.getDocument({
       data: uint8Array,
@@ -130,22 +127,30 @@ export class PdfDocManager {
     };
   }
 
-  /// 페이지 썸네일을 Data URL로 신속하게 렌더링
+  /// 페이지 썸네일을 Data URL로 신속하게 렌더링하고 리소스를 즉시 해제
   async renderThumbnail(pageNum: number, maxDim: number = 180, rotation: number = 0): Promise<string> {
     if (!this.pdfDoc) return '';
-    const page = await this.pdfDoc.getPage(pageNum);
-    const unscaled = page.getViewport({ scale: 1.0, rotation });
-    const scale = Math.min(maxDim / unscaled.width, maxDim / unscaled.height);
-    const viewport = page.getViewport({ scale, rotation });
+    try {
+      const page = await this.pdfDoc.getPage(pageNum);
+      const unscaled = page.getViewport({ scale: 1.0, rotation });
+      const scale = Math.min(maxDim / unscaled.width, maxDim / unscaled.height);
+      const viewport = page.getViewport({ scale, rotation });
 
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.floor(viewport.width);
-    canvas.height = Math.floor(viewport.height);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return '';
 
-    await page.render({ canvasContext: ctx, viewport }).promise;
-    return canvas.toDataURL('image/jpeg', 0.85);
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      page.cleanup();
+      canvas.width = 0;
+      canvas.height = 0;
+      return dataUrl;
+    } catch (_) {
+      return '';
+    }
   }
 
   /**
@@ -191,6 +196,10 @@ export class PdfDocManager {
 
     // 3. 고품질 JPEG Data URL 추출 (PDF Image XObject로 즉시 패키징)
     const imageData = canvas.toDataURL('image/jpeg', 0.95);
+    page.cleanup();
+    canvas.width = 0;
+    canvas.height = 0;
+
     return {
       imageData,
       widthPts: unscaledViewport.width,
@@ -223,4 +232,40 @@ export async function generateThumbnailFromBase64(
     manager.destroy();
     return '';
   }
+}
+
+/// 다중 페이지 배치 썸네일 생성 헬퍼 함수 (단일 Document 로드 + 점진적 청크 스트리밍)
+export async function generateThumbnailsBatch(
+  base64Data: string,
+  pageNumbers: number[],
+  maxDim: number = 180,
+  rotation: number = 0,
+  onChunkReady?: (chunk: Map<number, string>) => void
+): Promise<Map<number, string>> {
+  const manager = new PdfDocManager();
+  const results = new Map<number, string>();
+  try {
+    await manager.loadFromBase64(base64Data);
+    let currentChunk = new Map<number, string>();
+
+    for (let i = 0; i < pageNumbers.length; i++) {
+      const pageNum = pageNumbers[i];
+      const thumb = await manager.renderThumbnail(pageNum, maxDim, rotation);
+      results.set(pageNum, thumb);
+      currentChunk.set(pageNum, thumb);
+
+      if ((i + 1) % 10 === 0 || i === pageNumbers.length - 1) {
+        if (onChunkReady) {
+          onChunkReady(new Map(currentChunk));
+          currentChunk.clear();
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
+  } catch (e) {
+    console.error('Batch thumbnail error:', e);
+  } finally {
+    manager.destroy();
+  }
+  return results;
 }

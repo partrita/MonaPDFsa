@@ -1,4 +1,4 @@
-name: "CI - Test & Build Artifacts"
+name: "CI - Test & Build"
 
 on:
   push:
@@ -22,11 +22,17 @@ jobs:
           node-version: 22
           cache: 'npm'
 
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Install dependencies
         run: npm ci
 
-      - name: Run Test Suite
+      - name: Run Frontend Tests
         run: npm test
+
+      - name: Run Rust Core Tests
+        run: cargo test --workspace
 
   build-artifacts:
     name: Build (${{ matrix.name }})

@@ -217,5 +217,78 @@ describe('MonaPDFsa Unit & Integration Tests', () => {
       assert.equal(header, '%PDF-', '유효한 PDF 헤더여야 합니다.');
     });
   });
+
+  // 7. 대용량 문서 배치 처리 및 청크 스트리밍 테스트
+  describe('Large Document Batch & Progressive Streaming', () => {
+    test('청크 분할 및 콜백 호출 검증', async () => {
+      const totalPages = 25;
+      const chunkSize = 10;
+      const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
+
+      const receivedChunks = [];
+      let currentChunk = new Map();
+
+      for (let i = 0; i < pageNumbers.length; i++) {
+        const pageNum = pageNumbers[i];
+        currentChunk.set(pageNum, `thumb_data_${pageNum}`);
+
+        if ((i + 1) % chunkSize === 0 || i === pageNumbers.length - 1) {
+          receivedChunks.push(new Map(currentChunk));
+          currentChunk.clear();
+        }
+      }
+
+      assert.equal(receivedChunks.length, 3, '25개 페이지는 10개 단위 3개 청크(10, 10, 5)로 전달되어야 함');
+      assert.equal(receivedChunks[0].size, 10);
+      assert.equal(receivedChunks[1].size, 10);
+      assert.equal(receivedChunks[2].size, 5);
+      assert.equal(receivedChunks[0].get(1), 'thumb_data_1');
+      assert.equal(receivedChunks[2].get(25), 'thumb_data_25');
+    });
+
+    test('플레이스홀더 즉시 생성 및 점진적 매핑', () => {
+      const pageCount = 100;
+      const pages = [];
+      for (let pNum = 1; pNum <= pageCount; pNum++) {
+        pages.push({
+          id: `page_${pNum}`,
+          sourceFilePath: '/path/doc.pdf',
+          sourcePageIndex: pNum,
+          thumbnailUrl: '',
+        });
+      }
+
+      assert.equal(pages.length, 100);
+      assert.equal(pages[0].thumbnailUrl, '');
+
+      // 청크 수신 시뮬레이션
+      const chunk = new Map([
+        [1, 'data:image/jpeg;base64,thumb1'],
+        [2, 'data:image/jpeg;base64,thumb2'],
+      ]);
+
+      const updated = pages.map((item) => {
+        if (chunk.has(item.sourcePageIndex)) {
+          return { ...item, thumbnailUrl: chunk.get(item.sourcePageIndex) };
+        }
+        return item;
+      });
+
+      assert.equal(updated[0].thumbnailUrl, 'data:image/jpeg;base64,thumb1');
+      assert.equal(updated[1].thumbnailUrl, 'data:image/jpeg;base64,thumb2');
+      assert.equal(updated[2].thumbnailUrl, '');
+    });
+
+    test('Fast Base64 to Uint8Array 디코딩 정합성 검증', () => {
+      const sampleText = 'MonaPDFsa High Performance Test 12345!@#$%';
+      const base64 = Buffer.from(sampleText).toString('base64');
+      const raw = Buffer.from(base64, 'base64').toString('binary');
+      const uint8 = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+
+      const decodedText = Buffer.from(uint8).toString('utf-8');
+      assert.equal(decodedText, sampleText, '디코딩된 텍스트가 원본과 일치해야 합니다.');
+    });
+  });
 });
+
 

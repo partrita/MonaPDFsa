@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { PageItem } from '../types';
-import { generateThumbnailFromBase64 } from '../utils/pdfRenderer';
+import { generateThumbnailsBatch } from '../utils/pdfRenderer';
 import {
   LayoutGrid,
   RotateCw,
@@ -93,16 +93,15 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
           });
         }
 
-        // Make thumbnail for each page and add to list.
+        // Create page card placeholders immediately for instant responsiveness
         for (let pNum = 1; pNum <= fileInfo.page_count; pNum++) {
-          const thumbUrl = await generateThumbnailFromBase64(fileInfo.base64_data, pNum, 220);
           newPages.push({
-            id: `page_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            id: `page_${Date.now()}_${Math.random().toString(36).substring(2, 7)}_${pNum}`,
             sourceFilePath: p,
             sourceFileName: fileInfo.file_name,
             sourcePageIndex: pNum,
             rotation: 0,
-            thumbnailUrl: thumbUrl,
+            thumbnailUrl: '',
             isSplitBreak: false,
           });
         }
@@ -114,6 +113,29 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
         type: 'success',
         text: `성공적으로 ${newPages.length}개의 페이지가 추가되었습니다.`,
       });
+
+      // Stream thumbnails progressively in background chunks
+      for (const p of filePaths) {
+        const cached = fileCacheRef.current.get(p);
+        if (!cached) continue;
+        const pageNumbers = Array.from({ length: cached.count }, (_, i) => i + 1);
+        generateThumbnailsBatch(
+          cached.base64,
+          pageNumbers,
+          220,
+          0,
+          (chunk) => {
+            setPages((prev) =>
+              prev.map((item) => {
+                if (item.sourceFilePath === p && chunk.has(item.sourcePageIndex)) {
+                  return { ...item, thumbnailUrl: chunk.get(item.sourcePageIndex)! };
+                }
+                return item;
+              })
+            );
+          }
+        );
+      }
     } catch (err: any) {
       setIsLoading(false);
       console.error('페이지 추가 실패:', err);

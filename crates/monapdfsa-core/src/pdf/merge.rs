@@ -106,65 +106,76 @@ pub fn organize_and_export_pages(
         return Err("내보낼 페이지 목록이 비어 있습니다.".to_string());
     }
 
-    // 1. 소스 파일 경로별 원본 문서 로드 캐시
+    // 1. 소스 파일 경로별 원본 문서 로드 및 ID 재부여 (문서별 1회만 처리하여 O(N^2) 객체 복제 방지)
     let mut doc_cache: HashMap<String, Document> = HashMap::new();
+    let mut page_maps: HashMap<String, HashMap<u32, lopdf::ObjectId>> = HashMap::new();
+    let mut target_doc = Document::with_version("1.5");
+    let mut max_id = 1;
+
     for spec in page_specs {
         if !doc_cache.contains_key(&spec.source_path) {
-            let doc = Document::load(&spec.source_path)
+            let mut doc = Document::load(&spec.source_path)
                 .map_err(|e| format!("문서 '{}' 로드 실패: {}", spec.source_path, e))?;
-            doc_cache.insert(spec.source_path.clone(), doc);
+            doc.renumber_objects_with(max_id);
+            max_id = doc.max_id + 1;
+
+            let pages = doc.get_pages();
+            let mut pmap = HashMap::new();
+            for (p_num, p_id) in pages {
+                pmap.insert(p_num, p_id);
+            }
+            page_maps.insert(spec.source_path.clone(), pmap);
+
+            for (id, object) in doc.objects {
+                target_doc.objects.insert(id, object);
+            }
+            doc_cache.insert(spec.source_path.clone(), Document::with_version("1.5"));
         }
     }
 
-    let mut target_doc = Document::with_version("1.5");
-    let mut max_id = 1;
     let mut target_page_ids: Vec<Object> = Vec::new();
+    let mut used_page_ids = std::collections::HashSet::new();
 
-    // 2. 지정된 페이지 순서대로 순회하며 타겟 문서에 객체 복사 및 회전 적용
+    // 2. 지정된 페이지 순서대로 타겟 페이지 참조 등록 및 회전 적용
     for spec in page_specs {
-        let src_doc = match doc_cache.get(&spec.source_path) {
-            Some(d) => d,
+        let pmap = match page_maps.get(&spec.source_path) {
+            Some(m) => m,
             None => continue,
         };
 
-        let pages = src_doc.get_pages();
-        let src_page_id = match pages.get(&spec.page_number) {
+        let base_page_id = match pmap.get(&spec.page_number) {
             Some(&id) => id,
             None => continue,
         };
 
-        // 소스 문서를 클론하여 ID 재부여 후 필요한 객체들 복사
-        let mut cloned_doc = src_doc.clone();
-        cloned_doc.renumber_objects_with(max_id);
-        max_id = cloned_doc.max_id + 1;
-
-        let renumbered_page_id = (src_page_id.0 + (max_id - cloned_doc.max_id - 1), src_page_id.1);
-        
-        // 페이지 딕셔너리 가져와 회전(Rotate) 설정 적용
-        let actual_page_id = match cloned_doc.get_pages().get(&spec.page_number) {
-            Some(&id) => id,
-            None => renumbered_page_id,
+        // 동일 페이지가 여러 번 등장할 때만 단일 페이지 딕셔너리만 복제
+        let actual_page_id = if used_page_ids.insert(base_page_id) {
+            base_page_id
+        } else {
+            max_id += 1;
+            let dup_id = (max_id, 0);
+            if let Ok(page_obj) = target_doc.get_object(base_page_id).cloned() {
+                target_doc.objects.insert(dup_id, page_obj);
+            }
+            dup_id
         };
 
-        if let Ok(page_obj) = cloned_doc.get_object_mut(actual_page_id) {
-            if let Ok(page_dict) = page_obj.as_dict_mut() {
-                // 기존 회전값 조회
-                let current_rot = page_dict
-                    .get(b"Rotate")
-                    .and_then(Object::as_i64)
-                    .unwrap_or(0) as i32;
-                let final_rot = (current_rot + spec.rotation) % 360;
-                let final_rot = if final_rot < 0 { final_rot + 360 } else { final_rot };
-                page_dict.set("Rotate", Object::Integer(final_rot as i64));
+        // 회전값 적용
+        if spec.rotation != 0 {
+            if let Ok(page_obj) = target_doc.get_object_mut(actual_page_id) {
+                if let Ok(page_dict) = page_obj.as_dict_mut() {
+                    let current_rot = page_dict
+                        .get(b"Rotate")
+                        .and_then(Object::as_i64)
+                        .unwrap_or(0) as i32;
+                    let final_rot = (current_rot + spec.rotation) % 360;
+                    let final_rot = if final_rot < 0 { final_rot + 360 } else { final_rot };
+                    page_dict.set("Rotate", Object::Integer(final_rot as i64));
+                }
             }
         }
 
         target_page_ids.push(Object::Reference(actual_page_id));
-
-        // 클론된 문서의 모든 객체를 타겟 문서로 통합
-        for (id, object) in cloned_doc.objects {
-            target_doc.objects.insert(id, object);
-        }
     }
 
     let pages_id = (max_id, 0);

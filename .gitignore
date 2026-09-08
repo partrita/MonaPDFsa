@@ -38,3 +38,8 @@ pnpm-debug.log*
 *.app
 *.msi
 *.exe
+
+.claude/
+.agents/
+.claude/
+skills-lock.json
