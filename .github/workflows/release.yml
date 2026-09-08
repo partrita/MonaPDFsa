@@ -90,9 +90,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v__VERSION__' }}
-          releaseName: 'MonaPDFsa ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v__VERSION__' }}'
-          releaseBody: 'Cross-platform desktop release for Windows (.exe/.msi), macOS (.dmg/.app), and Linux (.deb/.AppImage).'
+          tagName: "${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v__VERSION__' }}"
+          releaseName: "MonaPDFsa ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v__VERSION__' }}"
+          releaseBody: "Cross-platform desktop release for Windows (.exe/.msi), macOS (.dmg/.app), and Linux (.deb/.AppImage)."
           releaseDraft: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.draft == true }}
           prerelease: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.prerelease == true }}
           args: ${{ matrix.args }}
