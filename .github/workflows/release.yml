@@ -46,6 +46,7 @@ jobs:
     needs: test
     permissions:
       contents: write
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
