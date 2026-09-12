@@ -19,14 +19,29 @@ export interface PageDimensions {
 export class PdfDocManager {
   private pdfDoc: pdfjsLib.PDFDocumentProxy | null = null;
   private currentRenderTask: pdfjsLib.RenderTask | null = null;
+  private renderSeq = 0;
+
+  // ponytail: chunked atob still copies once; direct binary read via plugin-fs if load stalls
+  private static base64ToBytes(b64: string): Uint8Array {
+    const comma = b64.indexOf(',');
+    const clean = comma >= 0 ? b64.slice(comma + 1) : b64;
+    const bin = atob(clean);
+    const len = bin.length;
+    const out = new Uint8Array(len);
+    const CHUNK = 0x8000;
+    for (let i = 0; i < len; i += CHUNK) {
+      const n = Math.min(CHUNK, len - i);
+      for (let j = 0; j < n; j++) out[i + j] = bin.charCodeAt(i + j);
+    }
+    return out;
+  }
 
   async loadFromBase64(base64Data: string): Promise<number> {
-    const raw = atob(base64Data);
-    const uint8Array = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+    const uint8Array = PdfDocManager.base64ToBytes(base64Data);
 
     const loadingTask = pdfjsLib.getDocument({
       data: uint8Array,
-      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
+      cMapUrl: 'cmaps/',
       cMapPacked: true,
     });
 
@@ -37,7 +52,7 @@ export class PdfDocManager {
   async loadFromUint8Array(data: Uint8Array): Promise<number> {
     const loadingTask = pdfjsLib.getDocument({
       data,
-      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
+      cMapUrl: 'cmaps/',
       cMapPacked: true,
     });
 
@@ -49,26 +64,6 @@ export class PdfDocManager {
     return this.pdfDoc ? this.pdfDoc.numPages : 0;
   }
 
-  async getPageDimensions(pageNum: number, scale: number = 1.0, rotation: number = 0): Promise<PageDimensions> {
-    if (!this.pdfDoc) throw new Error('PDF 문서가 로드되지 않았습니다.');
-    const page = await this.pdfDoc.getPage(pageNum);
-    const viewport = page.getViewport({ scale, rotation });
-    const unscaledViewport = page.getViewport({ scale: 1.0, rotation: 0 });
-
-    const dpr = window.devicePixelRatio || 1;
-
-    return {
-      width: unscaledViewport.width,
-      height: unscaledViewport.height,
-      canvasWidth: Math.floor(viewport.width * dpr),
-      canvasHeight: Math.floor(viewport.height * dpr),
-      viewportWidth: viewport.width,
-      viewportHeight: viewport.height,
-      scale,
-      rotation: viewport.rotation,
-    };
-  }
-
   async renderPage(
     pageNum: number,
     canvas: HTMLCanvasElement,
@@ -77,10 +72,11 @@ export class PdfDocManager {
   ): Promise<PageDimensions> {
     if (!this.pdfDoc) throw new Error('PDF 문서가 로드되지 않았습니다.');
 
-    // 이전 렌더링 작업이 진행 중이면 취소
+    // Cancel prior render without await; stale results are dropped via seq
+    const seq = ++this.renderSeq;
     if (this.currentRenderTask) {
       try {
-        await this.currentRenderTask.cancel();
+        this.currentRenderTask.cancel();
       } catch (_) {
         // 취소 에러 무시
       }
@@ -109,9 +105,15 @@ export class PdfDocManager {
       viewport: viewport,
     };
 
-    this.currentRenderTask = page.render(renderContext);
-    await this.currentRenderTask.promise;
-    ctx.restore();
+    const task = page.render(renderContext);
+    this.currentRenderTask = task;
+    try {
+      await task.promise;
+    } finally {
+      ctx.restore();
+      if (this.currentRenderTask === task) this.currentRenderTask = null;
+    }
+    if (seq !== this.renderSeq) throw { name: 'RenderingCancelledException' };
 
     this.currentRenderTask = null;
 
@@ -154,13 +156,13 @@ export class PdfDocManager {
   }
 
   /**
-   * 가림 처리(모자이크, 블랙아웃, 화이트아웃)가 적용된 페이지를 300 DPI 초고해상도로 래스터라이즈(Flattening)하여
+   * 가림 처리(모자이크, 블랙아웃, 화이트아웃)가 적용된 페이지를 고해상도로 래스터라이즈(Flattening)하여
    * 기저 텍스트/어노테이션이 완전히 픽셀화된 JPEG 이미지 데이터를 생성합니다.
    */
   async renderFlattenedRedactedPage(
     pageNum: number,
     pageRedactions: any[],
-    scale: number = 2.5
+    scale: number = 2.0
   ): Promise<{ imageData: string; widthPts: number; heightPts: number }> {
     if (!this.pdfDoc) throw new Error('PDF 문서가 로드되지 않았습니다.');
     const page = await this.pdfDoc.getPage(pageNum);
@@ -195,7 +197,7 @@ export class PdfDocManager {
     }
 
     // 3. 고품질 JPEG Data URL 추출 (PDF Image XObject로 즉시 패키징)
-    const imageData = canvas.toDataURL('image/jpeg', 0.95);
+    const imageData = canvas.toDataURL('image/jpeg', 0.9);
     page.cleanup();
     canvas.width = 0;
     canvas.height = 0;
@@ -208,6 +210,7 @@ export class PdfDocManager {
   }
 
   destroy() {
+    this.renderSeq++;
     if (this.pdfDoc) {
       this.pdfDoc.destroy();
       this.pdfDoc = null;
@@ -240,7 +243,8 @@ export async function generateThumbnailsBatch(
   pageNumbers: number[],
   maxDim: number = 180,
   rotation: number = 0,
-  onChunkReady?: (chunk: Map<number, string>) => void
+  onChunkReady?: (chunk: Map<number, string>) => void,
+  isCancelled?: () => boolean
 ): Promise<Map<number, string>> {
   const manager = new PdfDocManager();
   const results = new Map<number, string>();
@@ -249,6 +253,7 @@ export async function generateThumbnailsBatch(
     let currentChunk = new Map<number, string>();
 
     for (let i = 0; i < pageNumbers.length; i++) {
+      if (isCancelled?.()) break;
       const pageNum = pageNumbers[i];
       const thumb = await manager.renderThumbnail(pageNum, maxDim, rotation);
       results.set(pageNum, thumb);

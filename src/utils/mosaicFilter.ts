@@ -1,4 +1,18 @@
-import { RedactionItem } from '../types';
+function clampRect(
+  canvasW: number,
+  canvasH: number,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+): { x: number; y: number; w: number; h: number } | null {
+  const cx = Math.max(0, Math.floor(x));
+  const cy = Math.max(0, Math.floor(y));
+  const cw = Math.min(canvasW - cx, Math.ceil(w));
+  const ch = Math.min(canvasH - cy, Math.ceil(h));
+  if (cw <= 0 || ch <= 0) return null;
+  return { x: cx, y: cy, w: cw, h: ch };
+}
 
 /**
  * 지정된 캔버스 영역에 모자이크(픽셀 블록화) 필터를 직접 적용하여 픽셀을 변환합니다.
@@ -11,58 +25,24 @@ export function applyMosaicToCanvas(
   pixelH: number,
   blockSize: number = 14
 ): void {
-  const clampX = Math.max(0, Math.floor(pixelX));
-  const clampY = Math.max(0, Math.floor(pixelY));
-  const clampW = Math.min(ctx.canvas.width - clampX, Math.ceil(pixelW));
-  const clampH = Math.min(ctx.canvas.height - clampY, Math.ceil(pixelH));
+  const r = clampRect(ctx.canvas.width, ctx.canvas.height, pixelX, pixelY, pixelW, pixelH);
+  if (!r) return;
 
-  if (clampW <= 0 || clampH <= 0) return;
-
-  const imageData = ctx.getImageData(clampX, clampY, clampW, clampH);
-  const data = imageData.data;
+  // Downscale then upscale with smoothing off: GPU does the averaging
   const bs = Math.max(2, Math.floor(blockSize));
+  const tw = Math.max(1, Math.round(r.w / bs));
+  const th = Math.max(1, Math.round(r.h / bs));
+  const tiny = document.createElement('canvas');
+  tiny.width = tw;
+  tiny.height = th;
+  const tctx = tiny.getContext('2d');
+  if (!tctx) return;
+  tctx.drawImage(ctx.canvas, r.x, r.y, r.w, r.h, 0, 0, tw, th);
 
-  // 블록 단위로 순회하며 평균 색상 계산 및 적용
-  for (let by = 0; by < clampH; by += bs) {
-    for (let bx = 0; bx < clampW; bx += bs) {
-      let rSum = 0;
-      let gSum = 0;
-      let bSum = 0;
-      let aSum = 0;
-      let count = 0;
-
-      const bh = Math.min(bs, clampH - by);
-      const bw = Math.min(bs, clampW - bx);
-
-      for (let dy = 0; dy < bh; dy++) {
-        for (let dx = 0; dx < bw; dx++) {
-          const idx = ((by + dy) * clampW + (bx + dx)) * 4;
-          rSum += data[idx];
-          gSum += data[idx + 1];
-          bSum += data[idx + 2];
-          aSum += data[idx + 3];
-          count++;
-        }
-      }
-
-      const avgR = Math.round(rSum / count);
-      const avgG = Math.round(gSum / count);
-      const avgB = Math.round(bSum / count);
-      const avgA = Math.round(aSum / count);
-
-      for (let dy = 0; dy < bh; dy++) {
-        for (let dx = 0; dx < bw; dx++) {
-          const idx = ((by + dy) * clampW + (bx + dx)) * 4;
-          data[idx] = avgR;
-          data[idx + 1] = avgG;
-          data[idx + 2] = avgB;
-          data[idx + 3] = avgA;
-        }
-      }
-    }
-  }
-
-  ctx.putImageData(imageData, clampX, clampY);
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(tiny, 0, 0, tw, th, r.x, r.y, r.w, r.h);
+  ctx.restore();
 }
 
 /**
@@ -77,71 +57,28 @@ export function createMosaicImageDataUrl(
   pixelH: number,
   blockSize: number = 14
 ): string {
-  const clampX = Math.max(0, Math.floor(pixelX));
-  const clampY = Math.max(0, Math.floor(pixelY));
-  const clampW = Math.min(sourceCanvas.width - clampX, Math.ceil(pixelW));
-  const clampH = Math.min(sourceCanvas.height - clampY, Math.ceil(pixelH));
-
-  if (clampW <= 0 || clampH <= 0) {
-    return '';
-  }
-
-  const srcCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
-  if (!srcCtx) return '';
-
-  const imageData = srcCtx.getImageData(clampX, clampY, clampW, clampH);
-  const data = imageData.data;
+  const r = clampRect(sourceCanvas.width, sourceCanvas.height, pixelX, pixelY, pixelW, pixelH);
+  if (!r) return '';
 
   const bs = Math.max(2, Math.floor(blockSize));
+  const tw = Math.max(1, Math.round(r.w / bs));
+  const th = Math.max(1, Math.round(r.h / bs));
 
-  // Loop over blocks
-  for (let by = 0; by < clampH; by += bs) {
-    for (let bx = 0; bx < clampW; bx += bs) {
-      let rSum = 0;
-      let gSum = 0;
-      let bSum = 0;
-      let aSum = 0;
-      let count = 0;
+  // Draw into an offscreen canvas via downscale trick
+  const tiny = document.createElement('canvas');
+  tiny.width = tw;
+  tiny.height = th;
+  const tinyCtx = tiny.getContext('2d');
+  if (!tinyCtx) return '';
+  tinyCtx.drawImage(sourceCanvas, r.x, r.y, r.w, r.h, 0, 0, tw, th);
 
-      const bh = Math.min(bs, clampH - by);
-      const bw = Math.min(bs, clampW - bx);
-
-      for (let dy = 0; dy < bh; dy++) {
-        for (let dx = 0; dx < bw; dx++) {
-          const idx = ((by + dy) * clampW + (bx + dx)) * 4;
-          rSum += data[idx];
-          gSum += data[idx + 1];
-          bSum += data[idx + 2];
-          aSum += data[idx + 3];
-          count++;
-        }
-      }
-
-      const avgR = Math.round(rSum / count);
-      const avgG = Math.round(gSum / count);
-      const avgB = Math.round(bSum / count);
-      const avgA = Math.round(aSum / count);
-
-      for (let dy = 0; dy < bh; dy++) {
-        for (let dx = 0; dx < bw; dx++) {
-          const idx = ((by + dy) * clampW + (bx + dx)) * 4;
-          data[idx] = avgR;
-          data[idx + 1] = avgG;
-          data[idx + 2] = avgB;
-          data[idx + 3] = avgA;
-        }
-      }
-    }
-  }
-
-  // Draw into an offscreen canvas
   const offscreen = document.createElement('canvas');
-  offscreen.width = clampW;
-  offscreen.height = clampH;
+  offscreen.width = r.w;
+  offscreen.height = r.h;
   const offCtx = offscreen.getContext('2d');
   if (!offCtx) return '';
-
-  offCtx.putImageData(imageData, 0, 0);
+  offCtx.imageSmoothingEnabled = false;
+  offCtx.drawImage(tiny, 0, 0, tw, th, 0, 0, r.w, r.h);
   return offscreen.toDataURL('image/png');
 }
 

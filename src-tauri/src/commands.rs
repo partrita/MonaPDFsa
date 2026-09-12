@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
+use monapdfsa_core::pdf::compress::{compress_pdf, CompressionOptions, CompressionResult};
 use monapdfsa_core::pdf::merge::{merge_pdfs, organize_and_export_pages, PageOrganizeSpec};
 use monapdfsa_core::pdf::redact::{apply_redactions_hybrid, FlattenedPageSpec, RedactionRegion};
 use monapdfsa_core::pdf::split::{split_pdf, SplitRange};
@@ -94,6 +95,19 @@ pub fn cmd_pdf_apply_redactions(
 ) -> Result<String, String> {
     let fl_pages = flattened_pages.unwrap_or_default();
     apply_redactions_hybrid(&input_path, &output_path, &fl_pages, &redactions)
+}
+
+/// 원본 PDF를 0-100 압축 레벨로 처리하여 이미지 재인코딩 + 스트림 압축 결과를 저장하는 Tauri 커맨드
+#[tauri::command]
+pub fn cmd_compress_pdf(
+    input_path: String,
+    level: u8,
+    output_path: String,
+) -> Result<CompressionResult, String> {
+    if level > 100 {
+        return Err("압축 레벨은 0-100 이어야 합니다.".to_string());
+    }
+    compress_pdf(&input_path, &CompressionOptions { level, output_path })
 }
 
 /// Base64 데이터를 디코딩하여 지정된 파일 경로에 직접 저장하는 유틸리티 커맨드

@@ -15,6 +15,7 @@ pub fn run() {
             commands::cmd_pdf_split,
             commands::cmd_pdf_organize_and_export,
             commands::cmd_pdf_apply_redactions,
+            commands::cmd_compress_pdf,
             commands::save_file_bytes,
         ])
         // 디버그 빌드 시 로깅 플러그인 활성화

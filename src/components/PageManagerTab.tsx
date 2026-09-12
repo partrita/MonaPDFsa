@@ -34,6 +34,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ index: number | null; side: 'before' | 'after' } | null>(null);
   const fileCacheRef = useRef<Map<string, { base64: string; count: number }>>(new Map());
+  const batchSeqRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const pagesRef = useRef<PageItem[]>([]);
   const dropTargetRef = useRef<{ index: number | null; side: 'before' | 'after' } | null>(null);
@@ -50,10 +51,11 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
     pagesRef.current = pages;
   }, [pages]);
 
-  // Cleanup mouse listeners on unmount.
+  // Cleanup mouse listeners and thumbnail batches on unmount.
   useEffect(() => {
     return () => {
       mouseDragRef.current = null;
+      batchSeqRef.current++;
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
@@ -115,9 +117,11 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
       });
 
       // Stream thumbnails progressively in background chunks
+      const batchSeq = ++batchSeqRef.current;
       for (const p of filePaths) {
         const cached = fileCacheRef.current.get(p);
         if (!cached) continue;
+        if (batchSeq !== batchSeqRef.current) break;
         const pageNumbers = Array.from({ length: cached.count }, (_, i) => i + 1);
         generateThumbnailsBatch(
           cached.base64,
@@ -125,6 +129,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
           220,
           0,
           (chunk) => {
+            if (batchSeq !== batchSeqRef.current) return;
             setPages((prev) =>
               prev.map((item) => {
                 if (item.sourceFilePath === p && chunk.has(item.sourcePageIndex)) {
@@ -133,7 +138,8 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
                 return item;
               })
             );
-          }
+          },
+          () => batchSeq !== batchSeqRef.current
         );
       }
     } catch (err: any) {
@@ -481,14 +487,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleAddFiles}
-            disabled={isLoading}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-sky-600 hover:bg-sky-700 disabled:bg-gray-400 text-white font-semibold rounded-xl text-xs shadow-md shadow-sky-600/20 transition active:scale-95"
-          >
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FilePlus className="w-4 h-4" />}
-            <span>PDF 문서 추가</span>
-          </button>
+
 
           {pages.length > 0 && (
             <>
@@ -592,8 +591,8 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
                   여러 개의 PDF를 추가하여 한 화면에서 마우스 드래그로 순서 변경, 삭제, 회전, 분할을 손쉽게 수행할 수 있습니다.
                 </p>
               </div>
-              <button className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md shadow-amber-500/25 transition">
-                PDF 파일 선택하기
+              <button className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs shadow-md shadow-sky-600/25 transition active:scale-95">
+                PDF 열기
               </button>
             </div>
           </div>

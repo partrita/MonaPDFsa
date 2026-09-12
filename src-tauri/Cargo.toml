@@ -1,8 +1,8 @@
 [package]
 name = "app"
-version = "0.1.2"
+version = "0.2.0"
 description = "A Tauri App for PDF tool"
-authors = ["deepthought"]
+authors = ["Taeyoon Kim <deepthough@postech.ac.kr>"]
 license = "MIT"
 repository = ""
 edition = "2021"

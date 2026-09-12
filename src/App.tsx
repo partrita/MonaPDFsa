@@ -6,9 +6,11 @@ import { Toolbar } from './components/Toolbar';
 import { PdfViewer } from './components/PdfViewer';
 import { RedactionSidebar } from './components/RedactionSidebar';
 import { PageManagerTab } from './components/PageManagerTab';
+import { AboutTab } from './components/AboutTab';
 import { PdfDocManager } from './utils/pdfRenderer';
 import { RedactionItem, RedactionMode, LoadedPdf } from './types';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { CompressModal } from './components/CompressModal';
 
 export default function App() {
   const [isDark, setIsDark] = useState(false);
@@ -21,10 +23,11 @@ export default function App() {
   const [totalPages, setTotalPages] = useState(0);
   const [scale, setScale] = useState(1.0);
   const [mode, setMode] = useState<RedactionMode>('hand');
-  const [blockSize, setBlockSize] = useState(16);
+  const [blockSize, setBlockSize] = useState(10);
   const [redactions, setRedactions] = useState<RedactionItem[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [compressOpen, setCompressOpen] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Sync theme with html class
@@ -102,7 +105,7 @@ export default function App() {
       if (docManagerRef.current && uniqueRedactedPages.length > 0) {
         for (const pageNum of uniqueRedactedPages) {
           const pageRedactions = redactions.filter((r) => r.page === pageNum);
-          const flResult = await docManagerRef.current.renderFlattenedRedactedPage(pageNum, pageRedactions, 2.5);
+          const flResult = await docManagerRef.current.renderFlattenedRedactedPage(pageNum, pageRedactions, 2.0);
           flattenedPages.push({
             page: pageNum,
             image_data: flResult.imageData,
@@ -157,6 +160,12 @@ export default function App() {
       message: '열려 있던 PDF 문서를 닫았습니다. 새로운 PDF 파일을 열어주세요.',
     });
   }, []);
+
+  // 용량 최적화 모달 열기
+  const handleCompressFile = useCallback(() => {
+    if (!loadedPdf) return;
+    setCompressOpen(true);
+  }, [loadedPdf]);
 
   // Cross-platform keyboard shortcuts (Cmd on Mac, Ctrl on Win/Linux)
   useEffect(() => {
@@ -244,6 +253,7 @@ export default function App() {
           <Toolbar
             onOpenFile={() => handleOpenFile()}
             onSaveFile={handleSaveFile}
+            onCompressFile={handleCompressFile}
             onCloseFile={handleCloseFile}
             currentPage={currentPage}
             totalPages={totalPages}
@@ -294,6 +304,35 @@ export default function App() {
 
       {activeTab === 'organizer' && (
         <PageManagerTab />
+      )}
+
+      {activeTab === 'about' && (
+        <AboutTab />
+      )}
+
+      {loadedPdf && (
+        <CompressModal
+          open={compressOpen}
+          inputPath={loadedPdf.filePath}
+          inputName={loadedPdf.fileName}
+          inputSize={loadedPdf.fileSize}
+          onClose={() => setCompressOpen(false)}
+          onDone={(r) => {
+            setCompressOpen(false);
+            const fmt = (bytes: number) => {
+              if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + ' MB';
+              if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
+              return bytes + ' B';
+            };
+            const msg = r.reduction_percent > 0
+              ? `용량 최적화 완료: ${fmt(r.original_size)} → ${fmt(r.compressed_size)} (${r.reduction_percent.toFixed(1)}% 절감)`
+              : `용량 최적화 완료: 이미 최적화된 파일입니다 (${fmt(r.compressed_size)}).`;
+            setNotification({
+              type: 'success',
+              message: msg,
+            });
+          }}
+        />
       )}
 
       {/* Floating Notification Toast */}

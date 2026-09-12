@@ -2,12 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  overflow: hidden;
-  height: 100vh;
-  width: 100vw;
+@layer base {
+  :root {
+    --rp-base: 250 244 237; /* #faf4ed - Dawn Base */
+    --rp-surface: 255 250 243; /* #fffaf3 - Dawn Surface */
+    --rp-overlay: 242 233 225; /* #f2e9e1 - Dawn Overlay */
+    --rp-muted: 152 147 165; /* #9893a5 - Dawn Muted */
+    --rp-subtle: 121 117 147; /* #797593 - Dawn Subtle */
+    --rp-text: 87 82 121; /* #575279 - Dawn Text */
+    --rp-love: 180 99 122; /* #b4637a - Dawn Love */
+    --rp-gold: 234 157 52; /* #ea9d34 - Dawn Gold */
+    --rp-rose: 215 130 126; /* #d7827e - Dawn Rose */
+    --rp-pine: 40 105 131; /* #286983 - Dawn Pine */
+    --rp-foam: 86 148 159; /* #56949f - Dawn Foam */
+    --rp-iris: 144 122 169; /* #907aa9 - Dawn Iris */
+    --rp-highlight-low: 244 237 232; /* #f4ede8 */
+    --rp-highlight-med: 223 218 217; /* #dfdad9 */
+    --rp-highlight-high: 206 202 205; /* #cecacd */
+  }
+
+  .dark {
+    --rp-base: 25 23 36; /* #191724 - Rosé Pine Base */
+    --rp-surface: 31 29 46; /* #1f1d2e - Rosé Pine Surface */
+    --rp-overlay: 38 35 58; /* #26233a - Rosé Pine Overlay */
+    --rp-muted: 110 106 134; /* #6e6a86 - Rosé Pine Muted */
+    --rp-subtle: 144 140 170; /* #908caa - Rosé Pine Subtle */
+    --rp-text: 224 222 244; /* #e0def4 - Rosé Pine Text */
+    --rp-love: 235 111 146; /* #eb6f92 - Rosé Pine Love */
+    --rp-gold: 246 193 119; /* #f6c177 - Rosé Pine Gold */
+    --rp-rose: 235 188 186; /* #ebbcba - Rosé Pine Rose */
+    --rp-pine: 49 116 143; /* #31748f - Rosé Pine Pine */
+    --rp-foam: 156 207 216; /* #9ccfd8 - Rosé Pine Foam */
+    --rp-iris: 196 167 231; /* #c4a7e7 - Rosé Pine Iris */
+    --rp-highlight-low: 33 32 46; /* #21202e */
+    --rp-highlight-med: 64 61 82; /* #403d52 */
+    --rp-highlight-high: 82 79 103; /* #524f67 */
+  }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    background-color: rgb(var(--rp-base));
+    color: rgb(var(--rp-text));
+  }
 }
 
 #root {

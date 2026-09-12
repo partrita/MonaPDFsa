@@ -1,6 +1,6 @@
 [package]
 name = "monapdfsa-core"
-version = "0.1.2"
+version = "0.2.0"
 description = "Core PDF processing and structural redaction engine for MonaPDFsa"
 edition = "2021"
 
