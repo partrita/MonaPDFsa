@@ -1,4 +1,5 @@
 pub mod compress;
+pub mod image_import;
 pub mod merge;
 pub mod redact;
 pub mod split;
@@ -302,4 +303,107 @@ mod tests {
 
         let _ = fs::remove_dir_all(tmp_dir);
     }
+
+    #[test]
+    fn test_compress_pdf_with_redactions() {
+        use crate::pdf::compress::{compress_pdf_with_redactions, CompressionOptions};
+        use crate::pdf::redact::RedactionRegion;
+
+        let tmp_dir = std::env::temp_dir().join("monapdfsa_compress_redact_tests");
+        let _ = fs::create_dir_all(&tmp_dir);
+
+        let input = tmp_dir.join("input_redact_compress.pdf");
+        let output = tmp_dir.join("output_redact_compress.pdf");
+
+        create_dummy_pdf(input.to_str().unwrap(), "SECRET_CODE_9876");
+
+        // Define a vector redaction covering the dummy text at (100, 700)
+        let redactions = vec![RedactionRegion {
+            id: "redact-1".to_string(),
+            page: 1,
+            x: 80.0,
+            y: 680.0,
+            width: 200.0,
+            height: 50.0,
+            style: "blackout".to_string(),
+            image_data: None,
+        }];
+
+        let res = compress_pdf_with_redactions(
+            input.to_str().unwrap(),
+            &CompressionOptions {
+                level: 50,
+                output_path: output.to_str().unwrap().to_string(),
+            },
+            &[],
+            &redactions,
+        );
+
+        assert!(res.is_ok(), "가림 포함 압축 실패: {:?}", res.err());
+        assert!(output.exists(), "출력 파일이 존재해야 합니다");
+
+        // Verify the redacted text was removed from the compressed output
+        let out_doc = Document::load(output.to_str().unwrap()).unwrap();
+        let pages = out_doc.get_pages();
+        let page_id = pages.get(&1).unwrap();
+        let content = out_doc.get_page_content(*page_id).unwrap();
+        let content_str = String::from_utf8_lossy(&content);
+        assert!(
+            !content_str.contains("SECRET_CODE_9876"),
+            "가림 처리된 텍스트가 압축 결과물에 여전히 남아있습니다!"
+        );
+
+        let _ = fs::remove_dir_all(tmp_dir);
+    }
+
+    #[test]
+    fn test_image_to_pdf_and_merge() {
+        use image::codecs::jpeg::JpegEncoder;
+        use image::{ImageBuffer, Rgb};
+
+        let tmp_dir = std::env::temp_dir().join("monapdfsa_img_merge_tests");
+        let _ = fs::create_dir_all(&tmp_dir);
+
+        let img_path = tmp_dir.join("sample.jpg");
+        let pdf_path = tmp_dir.join("sample.pdf");
+        let merged_out = tmp_dir.join("merged_with_img.pdf");
+
+        // 1. Create a sample JPG image
+        let img_buf = ImageBuffer::from_fn(200, 200, |_x, _y| Rgb([255u8, 0, 0]));
+        let mut jpeg = Vec::new();
+        let mut enc = JpegEncoder::new_with_quality(&mut jpeg, 85);
+        enc.encode(img_buf.as_raw(), 200, 200, image::ExtendedColorType::Rgb8).unwrap();
+        fs::write(&img_path, &jpeg).unwrap();
+
+        // 2. Create a sample PDF
+        create_dummy_pdf(pdf_path.to_str().unwrap(), "PDF Page Before Image");
+
+        // 3. Test image_to_pdf_document directly
+        let img_doc = image_import::image_to_pdf_document(img_path.to_str().unwrap());
+        assert!(img_doc.is_ok(), "Image to PDF failed: {:?}", img_doc.err());
+        assert_eq!(img_doc.unwrap().get_pages().len(), 1);
+
+        // 4. Test organize_and_export_pages merging PDF and JPG together
+        let specs = vec![
+            merge::PageOrganizeSpec {
+                source_path: pdf_path.to_str().unwrap().to_string(),
+                page_number: 1,
+                rotation: 0,
+            },
+            merge::PageOrganizeSpec {
+                source_path: img_path.to_str().unwrap().to_string(),
+                page_number: 1,
+                rotation: 0,
+            },
+        ];
+
+        let res = merge::organize_and_export_pages(&specs, merged_out.to_str().unwrap());
+        assert!(res.is_ok(), "Organize and export with image failed: {:?}", res.err());
+
+        let loaded = Document::load(merged_out.to_str().unwrap()).unwrap();
+        assert_eq!(loaded.get_pages().len(), 2, "Merged document should have 2 pages (1 PDF + 1 Image)");
+
+        let _ = fs::remove_dir_all(tmp_dir);
+    }
 }
+

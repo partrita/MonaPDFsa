@@ -7,6 +7,8 @@ import { Loader2, FileUp } from 'lucide-react';
 interface PdfViewerProps {
   docManager: PdfDocManager | null;
   currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
   scale: number;
   mode: RedactionMode;
   blockSize: number;
@@ -20,6 +22,8 @@ interface PdfViewerProps {
 export const PdfViewer: React.FC<PdfViewerProps> = ({
   docManager,
   currentPage,
+  totalPages,
+  onPageChange,
   scale,
   mode,
   blockSize,
@@ -33,10 +37,63 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState<PageDimensions | null>(null);
   const [isRendering, setIsRendering] = useState(false);
+  const lastPageTurnTimeRef = useRef(0);
 
   // Panning state for Hand tool
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
+
+  // Mouse wheel scroll page transition handler
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !hasDocument) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // Allow browser zoom when user presses Ctrl or Cmd
+      if (e.ctrlKey || e.metaKey) return;
+
+      const now = Date.now();
+      // Throttle page transitions to prevent accidental multi-page skips
+      if (now - lastPageTurnTimeRef.current < 300) return;
+
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 6;
+      const isAtTop = scrollTop <= 6;
+      const fitsInContainer = scrollHeight <= clientHeight + 10;
+
+      // Scroll Down -> Next Page
+      if (e.deltaY > 15) {
+        if ((fitsInContainer || isAtBottom) && currentPage < totalPages) {
+          e.preventDefault();
+          lastPageTurnTimeRef.current = now;
+          onPageChange(currentPage + 1);
+          setTimeout(() => {
+            if (containerRef.current) containerRef.current.scrollTop = 0;
+          }, 0);
+        }
+      }
+      // Scroll Up -> Previous Page
+      else if (e.deltaY < -15) {
+        if ((fitsInContainer || isAtTop) && currentPage > 1) {
+          e.preventDefault();
+          lastPageTurnTimeRef.current = now;
+          onPageChange(currentPage - 1);
+          setTimeout(() => {
+            if (containerRef.current) {
+              containerRef.current.scrollTop =
+                containerRef.current.scrollHeight - containerRef.current.clientHeight;
+            }
+          }, 0);
+        }
+      }
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, [currentPage, totalPages, onPageChange, hasDocument]);
+
 
   // Render current page when page, scale, or docManager changes
   useEffect(() => {
@@ -66,8 +123,12 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
 
     return () => {
       active = false;
+      if (docManager) {
+        docManager.cancelCurrentRender();
+      }
     };
   }, [docManager, currentPage, scale, hasDocument]);
+
 
   // Hand tool pan handlers
   const handlePanMouseDown = (e: React.MouseEvent) => {
@@ -98,7 +159,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-gray-50 dark:bg-gray-900 select-none">
         <div className="max-w-md w-full p-8 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700 bg-white/50 dark:bg-gray-800/50 backdrop-blur flex flex-col items-center gap-4 shadow-sm">
-          <div className="w-16 h-16 rounded-2xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center shadow-inner">
+          <div className="w-16 h-16 rounded-2xl bg-pine-50 dark:bg-pine-950/60 text-pine-600 dark:text-pine-400 flex items-center justify-center shadow-inner">
             <FileUp className="w-8 h-8" />
           </div>
           <div>
@@ -109,7 +170,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
           </div>
           <button
             onClick={onOpenFile}
-            className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs shadow-md shadow-sky-600/25 transition active:scale-95"
+            className="px-5 py-2.5 rounded-xl bg-pine-600 hover:bg-pine-700 text-white font-semibold text-xs shadow-md shadow-pine-600/25 transition active:scale-95"
           >
             PDF 열기
           </button>

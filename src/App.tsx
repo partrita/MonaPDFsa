@@ -167,6 +167,58 @@ export default function App() {
     setCompressOpen(true);
   }, [loadedPdf]);
 
+  // Execute PDF compression with uncommitted redactions preserved
+  const handleExecuteCompress = useCallback(
+    async (outputPath: string, level: number) => {
+      if (!loadedPdf) throw new Error('불러온 문서가 없습니다.');
+
+      // 1. Flatten pages that have redactions to high-resolution raster images
+      const uniqueRedactedPages = Array.from(new Set(redactions.map((r) => r.page)));
+      const flattenedPages: Array<{
+        page: number;
+        image_data: string;
+        width_pts: number;
+        height_pts: number;
+      }> = [];
+
+      if (docManagerRef.current && uniqueRedactedPages.length > 0) {
+        for (const pageNum of uniqueRedactedPages) {
+          const pageRedactions = redactions.filter((r) => r.page === pageNum);
+          const flResult = await docManagerRef.current.renderFlattenedRedactedPage(pageNum, pageRedactions, 2.0);
+          flattenedPages.push({
+            page: pageNum,
+            image_data: flResult.imageData,
+            width_pts: flResult.widthPts,
+            height_pts: flResult.heightPts,
+          });
+        }
+      }
+
+      const rustRedactions = redactions.map((r) => ({
+        id: r.id,
+        page: r.page,
+        x: r.pdfX,
+        y: r.pdfY,
+        width: r.pdfWidth,
+        height: r.pdfHeight,
+        style: r.style,
+        image_data: r.imageData || null,
+      }));
+
+      const r: any = await invoke('cmd_compress_pdf', {
+        inputPath: loadedPdf.filePath,
+        level,
+        outputPath,
+        redactions: rustRedactions.length > 0 ? rustRedactions : null,
+        flattenedPages: flattenedPages.length > 0 ? flattenedPages : null,
+      });
+
+      return r;
+    },
+    [loadedPdf, redactions]
+  );
+
+
   // Cross-platform keyboard shortcuts (Cmd on Mac, Ctrl on Win/Linux)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -247,68 +299,69 @@ export default function App() {
       />
 
       {/* Main Body per Tab */}
-      {activeTab === 'viewer' && (
-        <div className="flex-1 flex flex-col min-h-0">
-          {/* Viewer Toolbar */}
-          <Toolbar
-            onOpenFile={() => handleOpenFile()}
-            onSaveFile={handleSaveFile}
-            onCompressFile={handleCompressFile}
-            onCloseFile={handleCloseFile}
+      <div className={`flex-1 flex flex-col min-h-0 ${activeTab === 'viewer' ? '' : 'hidden'}`}>
+        {/* Viewer Toolbar */}
+        <Toolbar
+          onOpenFile={() => handleOpenFile()}
+          onSaveFile={handleSaveFile}
+          onCompressFile={handleCompressFile}
+          onCloseFile={handleCloseFile}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          scale={scale}
+          onScaleChange={setScale}
+          onFitWidth={handleFitWidth}
+          onFitPage={handleFitPage}
+          mode={mode}
+          onModeChange={setMode}
+          blockSize={blockSize}
+          onBlockSizeChange={setBlockSize}
+          redactionsCount={redactions.length}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+          isSaving={isSaving}
+          hasDocument={!!loadedPdf}
+        />
+
+        {/* Viewer Content + Sidebar */}
+        <div className="flex-1 flex min-h-0 relative">
+          <PdfViewer
+            docManager={docManagerRef.current}
             currentPage={currentPage}
             totalPages={totalPages}
             onPageChange={handlePageChange}
             scale={scale}
-            onScaleChange={setScale}
-            onFitWidth={handleFitWidth}
-            onFitPage={handleFitPage}
             mode={mode}
-            onModeChange={setMode}
             blockSize={blockSize}
-            onBlockSizeChange={setBlockSize}
-            redactionsCount={redactions.length}
-            sidebarOpen={sidebarOpen}
-            onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
-            isSaving={isSaving}
+            redactions={redactions}
+            onAddRedaction={handleAddRedaction}
+            onRemoveRedaction={handleRemoveRedaction}
+            onOpenFile={() => handleOpenFile()}
             hasDocument={!!loadedPdf}
           />
 
-          {/* Viewer Content + Sidebar */}
-          <div className="flex-1 flex min-h-0 relative">
-            <PdfViewer
-              docManager={docManagerRef.current}
-              currentPage={currentPage}
-              scale={scale}
-              mode={mode}
-              blockSize={blockSize}
-              redactions={redactions}
-              onAddRedaction={handleAddRedaction}
-              onRemoveRedaction={handleRemoveRedaction}
-              onOpenFile={() => handleOpenFile()}
-              hasDocument={!!loadedPdf}
-            />
-
-            <RedactionSidebar
-              open={sidebarOpen}
-              onClose={() => setSidebarOpen(false)}
-              redactions={redactions}
-              currentPage={currentPage}
-              onNavigatePage={handlePageChange}
-              onRemoveRedaction={handleRemoveRedaction}
-              onClearPageRedactions={handleClearPageRedactions}
-              onClearAllRedactions={handleClearAllRedactions}
-            />
-          </div>
+          <RedactionSidebar
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            redactions={redactions}
+            currentPage={currentPage}
+            onNavigatePage={handlePageChange}
+            onRemoveRedaction={handleRemoveRedaction}
+            onClearPageRedactions={handleClearPageRedactions}
+            onClearAllRedactions={handleClearAllRedactions}
+          />
         </div>
-      )}
+      </div>
 
-      {activeTab === 'organizer' && (
+      <div className={`flex-1 flex flex-col min-h-0 ${activeTab === 'organizer' ? '' : 'hidden'}`}>
         <PageManagerTab />
-      )}
+      </div>
 
-      {activeTab === 'about' && (
+      <div className={`flex-1 flex flex-col min-h-0 ${activeTab === 'about' ? '' : 'hidden'}`}>
         <AboutTab />
-      )}
+      </div>
+
 
       {loadedPdf && (
         <CompressModal
@@ -316,6 +369,8 @@ export default function App() {
           inputPath={loadedPdf.filePath}
           inputName={loadedPdf.fileName}
           inputSize={loadedPdf.fileSize}
+          redactionsCount={redactions.length}
+          onCompress={handleExecuteCompress}
           onClose={() => setCompressOpen(false)}
           onDone={(r) => {
             setCompressOpen(false);
@@ -324,16 +379,19 @@ export default function App() {
               if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
               return bytes + ' B';
             };
-            const msg = r.reduction_percent > 0
-              ? `용량 최적화 완료: ${fmt(r.original_size)} → ${fmt(r.compressed_size)} (${r.reduction_percent.toFixed(1)}% 절감)`
-              : `용량 최적화 완료: 이미 최적화된 파일입니다 (${fmt(r.compressed_size)}).`;
+            const prefix = redactions.length > 0 ? '가림 처리 및 ' : '';
+            const msg =
+              r.reduction_percent > 0
+                ? `${prefix}용량 최적화 완료: ${fmt(r.original_size)} → ${fmt(r.compressed_size)} (${r.reduction_percent.toFixed(1)}% 절감)`
+                : `${prefix}용량 최적화 완료: 이미 최적화된 파일입니다 (${fmt(r.compressed_size)}).`;
             setNotification({
               type: 'success',
-              message: msg,
+              message: `${msg}\n${r.output_path}`,
             });
           }}
         />
       )}
+
 
       {/* Floating Notification Toast */}
       {notification && (

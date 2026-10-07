@@ -23,13 +23,14 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Main Navigation Tabs */}
-      <nav className="flex items-center gap-1 bg-gray-100/80 dark:bg-gray-800/80 p-1 rounded-xl border border-gray-200/50 dark:border-gray-700/50 shrink-0">
+      <nav className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl border border-gray-200 dark:border-gray-700 shrink-0">
         <button
           onClick={() => setActiveTab('viewer')}
-          className={`flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 whitespace-nowrap ${activeTab === 'viewer'
-              ? 'bg-white dark:bg-gray-700 text-sky-600 dark:text-sky-300 shadow-sm'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-            }`}
+          className={`flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 whitespace-nowrap ${
+            activeTab === 'viewer'
+              ? 'bg-white dark:bg-gray-700 text-pine-700 dark:text-pine-200 border border-gray-300/80 dark:border-gray-600 shadow-sm'
+              : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-white/60 dark:hover:bg-gray-700/60'
+          }`}
           title="내용 가리기"
         >
           <FileText className="w-4 h-4 shrink-0" />
@@ -38,10 +39,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <button
           onClick={() => setActiveTab('organizer')}
-          className={`flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 whitespace-nowrap ${activeTab === 'organizer'
-              ? 'bg-white dark:bg-gray-700 text-sky-600 dark:text-sky-300 shadow-sm'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-            }`}
+          className={`flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 whitespace-nowrap ${
+            activeTab === 'organizer'
+              ? 'bg-white dark:bg-gray-700 text-pine-700 dark:text-pine-200 border border-gray-300/80 dark:border-gray-600 shadow-sm'
+              : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-white/60 dark:hover:bg-gray-700/60'
+          }`}
           title="페이지 관리"
         >
           <LayoutGrid className="w-4 h-4 shrink-0" />
@@ -50,10 +52,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <button
           onClick={() => setActiveTab('about')}
-          className={`flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 whitespace-nowrap ${activeTab === 'about'
-              ? 'bg-white dark:bg-gray-700 text-sky-600 dark:text-sky-300 shadow-sm'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-            }`}
+          className={`flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 whitespace-nowrap ${
+            activeTab === 'about'
+              ? 'bg-white dark:bg-gray-700 text-pine-700 dark:text-pine-200 border border-gray-300/80 dark:border-gray-600 shadow-sm'
+              : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-white/60 dark:hover:bg-gray-700/60'
+          }`}
           title="정보"
         >
           <Info className="w-4 h-4 shrink-0" />

@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
-use monapdfsa_core::pdf::compress::{compress_pdf, CompressionOptions, CompressionResult};
+use monapdfsa_core::pdf::compress::{
+    compress_pdf_with_redactions, CompressionOptions, CompressionResult,
+};
+
 use monapdfsa_core::pdf::merge::{merge_pdfs, organize_and_export_pages, PageOrganizeSpec};
 use monapdfsa_core::pdf::redact::{apply_redactions_hybrid, FlattenedPageSpec, RedactionRegion};
 use monapdfsa_core::pdf::split::{split_pdf, SplitRange};
@@ -24,7 +27,7 @@ pub struct PdfFileInfo {
     pub base64_data: String,
 }
 
-/// 지정된 경로의 PDF 파일을 읽어 메타데이터와 Base64 데이터를 반환하는 Tauri 커맨드
+/// 지정된 경로의 PDF 또는 이미지 파일을 읽어 메타데이터와 Base64 데이터를 반환하는 Tauri 커맨드
 #[tauri::command]
 pub fn read_pdf_file(path: String) -> Result<PdfFileInfo, String> {
     let file_path = Path::new(&path);
@@ -37,15 +40,26 @@ pub fn read_pdf_file(path: String) -> Result<PdfFileInfo, String> {
         .map(|f| f.to_string_lossy().to_string())
         .unwrap_or_else(|| "document.pdf".to_string());
 
-    let bytes = fs::read(&path).map_err(|e| format!("파일 읽기 실패: {}", e))?;
-    let file_size = bytes.len() as u64;
+    let ext = file_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let is_image = matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "webp" | "bmp");
 
-    // lopdf를 활용한 총 페이지 수 산출
-    let page_count = match Document::load_mem(&bytes) {
-        Ok(doc) => doc.get_pages().len(),
-        Err(_) => 1,
+    let (bytes, page_count) = if is_image {
+        let pdf_bytes = monapdfsa_core::pdf::image_import::image_to_pdf_bytes(&path)?;
+        (pdf_bytes, 1)
+    } else {
+        let raw_bytes = fs::read(&path).map_err(|e| format!("파일 읽기 실패: {}", e))?;
+        let count = match Document::load_mem(&raw_bytes) {
+            Ok(doc) => doc.get_pages().len(),
+            Err(_) => 1,
+        };
+        (raw_bytes, count)
     };
 
+    let file_size = bytes.len() as u64;
     let base64_data = BASE64_STANDARD.encode(&bytes);
 
     Ok(PdfFileInfo {
@@ -98,17 +112,28 @@ pub fn cmd_pdf_apply_redactions(
 }
 
 /// 원본 PDF를 0-100 압축 레벨로 처리하여 이미지 재인코딩 + 스트림 압축 결과를 저장하는 Tauri 커맨드
+/// 작업 중인 가림 처리(플래트닝 및 벡터 가림)가 전달되면 먼저 적용한 뒤 최적화합니다.
 #[tauri::command]
 pub fn cmd_compress_pdf(
     input_path: String,
     level: u8,
     output_path: String,
+    redactions: Option<Vec<RedactionRegion>>,
+    flattened_pages: Option<Vec<FlattenedPageSpec>>,
 ) -> Result<CompressionResult, String> {
     if level > 100 {
         return Err("압축 레벨은 0-100 이어야 합니다.".to_string());
     }
-    compress_pdf(&input_path, &CompressionOptions { level, output_path })
+    let fl_pages = flattened_pages.unwrap_or_default();
+    let reds = redactions.unwrap_or_default();
+    compress_pdf_with_redactions(
+        &input_path,
+        &CompressionOptions { level, output_path },
+        &fl_pages,
+        &reds,
+    )
 }
+
 
 /// Base64 데이터를 디코딩하여 지정된 파일 경로에 직접 저장하는 유틸리티 커맨드
 #[tauri::command]

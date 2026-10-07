@@ -3,8 +3,6 @@ import {
   FolderOpen,
   Save,
   XCircle,
-  ChevronLeft,
-  ChevronRight,
   ZoomIn,
   ZoomOut,
   Maximize2,
@@ -15,6 +13,7 @@ import {
   PanelRight,
   Sparkles,
   Gauge,
+
 } from 'lucide-react';
 import { RedactionMode } from '../types';
 
@@ -79,15 +78,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <button
           onClick={onSaveFile}
           disabled={!hasDocument || isSaving}
-          className={`flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-lg font-medium transition active:scale-95 shrink-0 whitespace-nowrap ${
+          className={`flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-lg font-semibold transition active:scale-95 shrink-0 whitespace-nowrap ${
             hasDocument && !isSaving
-              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-600/20'
-              : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+              ? 'bg-pine-600 hover:bg-pine-700 text-white shadow-sm shadow-pine-600/20'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 cursor-not-allowed'
           }`}
           title="모자이크/가림 처리를 적용하여 새 PDF로 저장 (Cmd+S)"
         >
           <Save className="w-4 h-4 shrink-0" />
-          <span className="hidden md:inline">{isSaving ? '저장 중...' : '가림 적용 저장'}</span>
+          <span className="hidden md:inline">{isSaving ? '저장 중...' : '파일 저장'}</span>
           {redactionsCount > 0 && (
             <span className="ml-0.5 px-1.5 py-0.2 bg-white/20 rounded-full text-[10px] font-bold shrink-0">
               {redactionsCount}
@@ -98,10 +97,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         {hasDocument && onCloseFile && (
           <button
             onClick={onCloseFile}
-            className="flex items-center gap-1.5 px-2.5 md:px-2.5 py-1.5 rounded-lg bg-gray-100 hover:bg-red-50 dark:bg-gray-800 dark:hover:bg-red-950/40 text-gray-600 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400 font-medium border border-gray-200 dark:border-gray-700 transition active:scale-95 shrink-0 whitespace-nowrap"
+            className="flex items-center gap-1.5 px-2.5 md:px-2.5 py-1.5 rounded-lg bg-white hover:bg-love-50 dark:bg-gray-800 dark:hover:bg-love-950/40 text-gray-700 hover:text-love-600 dark:text-gray-200 dark:hover:text-love-400 font-medium border border-gray-300 dark:border-gray-700 transition active:scale-95 shrink-0 whitespace-nowrap"
             title="현재 열린 문서를 닫고 초기화"
           >
-            <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+            <XCircle className="w-4 h-4 text-love-500 shrink-0" />
             <span className="hidden md:inline">문서 닫기</span>
           </button>
         )}
@@ -109,10 +108,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <button
           onClick={onCompressFile}
           disabled={!hasDocument}
-          className={`flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-lg font-medium transition active:scale-95 shrink-0 whitespace-nowrap ${
+          className={`flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-lg font-semibold transition active:scale-95 shrink-0 whitespace-nowrap ${
             hasDocument
-              ? 'bg-violet-600 hover:bg-violet-700 text-white shadow-sm shadow-violet-600/20'
-              : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+              ? 'bg-iris-600 hover:bg-iris-700 text-white shadow-sm shadow-iris-600/20'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 cursor-not-allowed'
           }`}
           title="PDF 이미지 압축으로 용량 최적화"
         >
@@ -123,42 +122,26 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       <div className="h-5 w-[1px] bg-gray-200 dark:bg-gray-700 mx-1" />
 
-      {/* Page Navigation */}
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={!hasDocument || currentPage <= 1}
-          className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-30 disabled:hover:bg-transparent"
-          title="이전 페이지"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-
-        <div className="flex items-center gap-1 px-1 text-gray-600 dark:text-gray-300 font-medium">
-          <input
-            type="number"
-            min={1}
-            max={totalPages || 1}
-            value={totalPages ? currentPage : 0}
-            onChange={(e) => {
-              const val = parseInt(e.target.value);
-              if (!isNaN(val)) onPageChange(val);
-            }}
-            disabled={!hasDocument}
-            className="w-12 text-center py-1 px-1 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-sky-500"
-          />
-          <span>/ {totalPages || 0}</span>
-        </div>
-
-        <button
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={!hasDocument || currentPage >= totalPages}
-          className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-30 disabled:hover:bg-transparent"
-          title="다음 페이지"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
+      {/* Page Counter Display (Scroll to Navigate) */}
+      <div
+        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/80 text-gray-600 dark:text-gray-300 font-medium"
+        title="마우스 스크롤로 페이지 이동 가능"
+      >
+        <input
+          type="number"
+          min={1}
+          max={totalPages || 1}
+          value={totalPages ? currentPage : 0}
+          onChange={(e) => {
+            const val = parseInt(e.target.value);
+            if (!isNaN(val)) onPageChange(val);
+          }}
+          disabled={!hasDocument}
+          className="w-11 text-center py-0.5 px-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-50"
+        />
+        <span className="text-[11px] text-gray-500 dark:text-gray-400">/ {totalPages || 0}</span>
       </div>
+
 
       <div className="h-5 w-[1px] bg-gray-200 dark:bg-gray-700 mx-1" />
 
@@ -218,8 +201,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           onClick={() => onModeChange('hand')}
           className={`flex items-center gap-1.5 px-2 md:px-2.5 py-1 rounded-md transition shrink-0 whitespace-nowrap ${
             mode === 'hand'
-              ? 'bg-white dark:bg-gray-700 text-sky-600 dark:text-sky-400 font-bold shadow-sm'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              ? 'bg-white dark:bg-gray-700 text-pine-700 dark:text-pine-200 font-bold border border-gray-300 dark:border-gray-600 shadow-sm'
+              : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-white/60 dark:hover:bg-gray-700/60'
           }`}
           title="스크롤 / 이동 모드 (H)"
         >
@@ -231,8 +214,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           onClick={() => onModeChange('mosaic')}
           className={`flex items-center gap-1.5 px-2 md:px-2.5 py-1 rounded-md transition shrink-0 whitespace-nowrap ${
             mode === 'mosaic'
-              ? 'bg-sky-500 text-white font-bold shadow-sm shadow-sky-500/30'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              ? 'bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-sm shadow-rose-600/30'
+              : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-white/60 dark:hover:bg-gray-700/60'
           }`}
           title="드래그하여 모자이크 처리 (M)"
         >
@@ -244,8 +227,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           onClick={() => onModeChange('blackout')}
           className={`flex items-center gap-1.5 px-2 md:px-2.5 py-1 rounded-md transition shrink-0 whitespace-nowrap ${
             mode === 'blackout'
-              ? 'bg-gray-900 text-white dark:bg-gray-600 font-bold shadow-sm'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              ? 'bg-gray-900 text-white dark:bg-gray-700 dark:text-white font-bold shadow-sm border border-gray-900 dark:border-gray-600'
+              : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-white/60 dark:hover:bg-gray-700/60'
           }`}
           title="드래그하여 검정색 박스로 가리기 (B)"
         >
@@ -257,8 +240,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           onClick={() => onModeChange('whiteout')}
           className={`flex items-center gap-1.5 px-2 md:px-2.5 py-1 rounded-md transition shrink-0 whitespace-nowrap ${
             mode === 'whiteout'
-              ? 'bg-white text-gray-900 border border-gray-300 font-bold shadow-sm'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              ? 'bg-white text-gray-900 border-2 border-gray-400 dark:bg-gray-100 dark:text-gray-900 dark:border-gray-300 font-bold shadow-sm'
+              : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-white/60 dark:hover:bg-gray-700/60'
           }`}
           title="드래그하여 흰색 박스로 가리기 (W)"
         >
@@ -269,9 +252,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* Mosaic Block Size Slider (active when mosaic tool selected) */}
       {mode === 'mosaic' && (
-        <div className="flex items-center gap-1.5 md:gap-2 bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/60 px-2 md:px-2.5 py-1 rounded-lg shrink-0 whitespace-nowrap">
-          <Sparkles className="w-3.5 h-3.5 text-sky-500 shrink-0" />
-          <span className="hidden md:inline text-sky-700 dark:text-sky-300 font-medium">격자:</span>
+        <div className="flex items-center gap-1.5 md:gap-2 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 px-2 md:px-2.5 py-1 rounded-lg shrink-0 whitespace-nowrap">
+          <Sparkles className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+          <span className="hidden md:inline text-rose-600 dark:text-rose-300 font-medium">격자:</span>
           <input
             type="range"
             min={2}
@@ -279,9 +262,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             step={2}
             value={blockSize}
             onChange={(e) => onBlockSizeChange(parseInt(e.target.value))}
-            className="w-16 md:w-20 accent-sky-500 h-1.5 bg-sky-200 rounded-lg cursor-pointer"
+            className="w-16 md:w-20 accent-rose-500 h-1.5 bg-rose-200 rounded-lg cursor-pointer"
           />
-          <span className="text-sky-700 dark:text-sky-300 font-bold text-[11px] w-5 text-right shrink-0">
+          <span className="text-rose-600 dark:text-rose-300 font-bold text-[11px] w-5 text-right shrink-0">
             {blockSize}
           </span>
         </div>
@@ -293,8 +276,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           onClick={onToggleSidebar}
           className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition shrink-0 whitespace-nowrap ${
             sidebarOpen
-              ? 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-sky-600 dark:text-sky-400'
-              : 'border-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+              ? 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-pine-700 dark:text-pine-200 font-semibold shadow-xs'
+              : 'border-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-gray-200 dark:hover:border-gray-700'
           }`}
           title="가림 영역 목록 패널 열기/닫기"
         >

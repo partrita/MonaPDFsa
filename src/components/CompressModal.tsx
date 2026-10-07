@@ -11,6 +11,7 @@ import {
   Save,
   Loader2,
   HelpCircle,
+  ShieldCheck,
 } from 'lucide-react';
 
 export interface CompressionResult {
@@ -27,6 +28,8 @@ interface CompressModalProps {
   inputPath: string;
   inputName: string;
   inputSize: number;
+  redactionsCount?: number;
+  onCompress?: (outputPath: string, level: number) => Promise<CompressionResult>;
   onClose: () => void;
   onDone: (result: CompressionResult) => void;
 }
@@ -42,9 +45,12 @@ export const CompressModal: React.FC<CompressModalProps> = ({
   inputPath,
   inputName,
   inputSize,
+  redactionsCount = 0,
+  onCompress,
   onClose,
   onDone,
 }) => {
+
   const originalMb = useMemo(() => {
     return Math.max(0.01, +(inputSize / (1024 * 1024)).toFixed(2));
   }, [inputSize]);
@@ -146,7 +152,11 @@ export const CompressModal: React.FC<CompressModalProps> = ({
     if (!assessment.isPossible) return;
 
     try {
-      const defaultName = inputName.replace(/\.pdf$/i, '') + '_compressed.pdf';
+      const isRedacted = redactionsCount > 0;
+      const defaultName =
+        inputName.replace(/\.pdf$/i, '') +
+        (isRedacted ? '_redacted_compressed.pdf' : '_compressed.pdf');
+
       const out = await save({
         defaultPath: defaultName,
         filters: [{ name: 'PDF Documents', extensions: ['pdf'] }],
@@ -160,11 +170,13 @@ export const CompressModal: React.FC<CompressModalProps> = ({
       setLoading(true);
       setError(null);
 
-      const r = await invoke<CompressionResult>('cmd_compress_pdf', {
-        inputPath,
-        level: assessment.level,
-        outputPath: out,
-      });
+      const r = onCompress
+        ? await onCompress(out, assessment.level)
+        : await invoke<CompressionResult>('cmd_compress_pdf', {
+            inputPath,
+            level: assessment.level,
+            outputPath: out,
+          });
 
       setLoading(false);
       onDone(r);
@@ -173,6 +185,7 @@ export const CompressModal: React.FC<CompressModalProps> = ({
       setError(`압축 중 오류가 발생했습니다: ${String(e)}`);
     }
   };
+
 
   const handlePreset = (fraction: number) => {
     const val = Math.max(minAchievableMb, +(originalMb * fraction).toFixed(2));
@@ -217,6 +230,17 @@ export const CompressModal: React.FC<CompressModalProps> = ({
             <span className="font-medium text-gray-800 dark:text-gray-200 truncate flex-1">{inputName}</span>
             <span className="font-bold text-gray-900 dark:text-gray-100 shrink-0">{fmt(inputSize)}</span>
           </div>
+
+          {/* In-progress Redaction Notice */}
+          {redactionsCount > 0 && (
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200 animate-in fade-in duration-150">
+              <ShieldCheck className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>
+                현재 편집 중인 검열(가림 처리) <strong>{redactionsCount}건</strong>이 사라지지 않고 함께 안전하게 적용되어 저장됩니다.
+              </span>
+            </div>
+          )}
+
 
           {/* Size Configuration Row */}
           <div className="space-y-3">
@@ -263,12 +287,12 @@ export const CompressModal: React.FC<CompressModalProps> = ({
 
             {/* Quick Preset Buttons */}
             <div className="flex items-center gap-1.5 pt-1">
-              <span className="text-[11px] text-gray-400 mr-1">빠른 추천:</span>
+              <span className="text-[11px] text-gray-500 dark:text-gray-400 mr-1 font-medium">빠른 추천:</span>
               <button
                 type="button"
                 onClick={() => handlePreset(0.75)}
                 disabled={loading}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition"
+                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 transition"
               >
                 75% ({(originalMb * 0.75).toFixed(1)}MB)
               </button>
@@ -276,7 +300,7 @@ export const CompressModal: React.FC<CompressModalProps> = ({
                 type="button"
                 onClick={() => handlePreset(0.5)}
                 disabled={loading}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition"
+                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 transition"
               >
                 50% ({(originalMb * 0.5).toFixed(1)}MB)
               </button>
@@ -284,7 +308,7 @@ export const CompressModal: React.FC<CompressModalProps> = ({
                 type="button"
                 onClick={() => handlePreset(0.25)}
                 disabled={loading}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition"
+                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 transition"
               >
                 25% ({(originalMb * 0.25).toFixed(1)}MB)
               </button>
@@ -336,7 +360,7 @@ export const CompressModal: React.FC<CompressModalProps> = ({
           <button
             onClick={onClose}
             disabled={loading}
-            className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition disabled:opacity-40"
+            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-800 border border-gray-300 dark:border-gray-700 transition disabled:opacity-40"
           >
             닫기
           </button>
@@ -346,12 +370,16 @@ export const CompressModal: React.FC<CompressModalProps> = ({
             <button
               onClick={handleSave}
               disabled={loading}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-md shadow-sky-600/25 transition active:scale-95 disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-pine-600 hover:bg-pine-700 disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500 text-white shadow-md shadow-pine-600/25 transition active:scale-95 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>압축 처리 및 저장 중...</span>
+                  <span>
+                    {redactionsCount > 0
+                       ? '가림 적용 및 압축 저장 중...'
+                      : '압축 처리 및 저장 중...'}
+                  </span>
                 </>
               ) : (
                 <>

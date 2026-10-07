@@ -37,8 +37,9 @@ export const AboutTab: React.FC = () => {
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{APP_INFO.name}</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              v{APP_INFO.version} · {APP_INFO.bundleId} · {APP_INFO.license}
+              v{APP_INFO.version} · {APP_INFO.license}
             </p>
+
           </div>
         </div>
 
@@ -53,7 +54,7 @@ export const AboutTab: React.FC = () => {
               href={APP_INFO.github}
               target="_blank"
               rel="noreferrer"
-              className="text-sm font-semibold text-sky-600 dark:text-sky-400 text-right hover:underline inline-flex items-center gap-1.5"
+              className="text-sm font-semibold text-pine-500 dark:text-pine-400 text-right hover:underline inline-flex items-center gap-1.5"
             >
               <span>{APP_INFO.github}</span>
               <ExternalLink className="w-3.5 h-3.5" />

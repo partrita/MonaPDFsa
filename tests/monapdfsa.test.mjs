@@ -287,6 +287,69 @@ describe('MonaPDFsa Unit & Integration Tests', () => {
       assert.equal(decodedText, sampleText, '디코딩된 텍스트가 원본과 일치해야 합니다.');
     });
   });
+
+  // 7. 작업 중인 가림 처리 포함 압축(최적화) 파일명 및 파라미터 로직 테스트
+  describe('Redaction-Preserving Optimization Parameters', () => {
+    function computeDefaultFileName(inputName, redactionsCount) {
+      const isRedacted = redactionsCount > 0;
+      return (
+        inputName.replace(/\.pdf$/i, '') +
+        (isRedacted ? '_redacted_compressed.pdf' : '_compressed.pdf')
+      );
+    }
+
+    test('가림 작업 미존재 시 일반 압축 파일명 생성', () => {
+      const name = computeDefaultFileName('document.pdf', 0);
+      assert.equal(name, 'document_compressed.pdf');
+    });
+
+    test('가림 작업 진행 중일 시 가림 포함 압축 파일명 생성', () => {
+      const name = computeDefaultFileName('contract.pdf', 3);
+      assert.equal(name, 'contract_redacted_compressed.pdf');
+    });
+
+    test('가림 영역 객체 Rust DTO 포맷 매핑 검증', () => {
+      const frontendRedactions = [
+        {
+          id: 'redact-1',
+          page: 1,
+          pdfX: 100,
+          pdfY: 700,
+          pdfWidth: 150,
+          pdfHeight: 30,
+          normX: 0.2,
+          normY: 0.1,
+          normWidth: 0.3,
+          normHeight: 0.05,
+          style: 'mosaic',
+          blockSize: 10,
+          imageData: 'data:image/png;base64,sample123',
+        },
+      ];
+
+      const rustRedactions = frontendRedactions.map((r) => ({
+        id: r.id,
+        page: r.page,
+        x: r.pdfX,
+        y: r.pdfY,
+        width: r.pdfWidth,
+        height: r.pdfHeight,
+        style: r.style,
+        image_data: r.imageData || null,
+      }));
+
+      assert.equal(rustRedactions.length, 1);
+      assert.equal(rustRedactions[0].id, 'redact-1');
+      assert.equal(rustRedactions[0].page, 1);
+      assert.equal(rustRedactions[0].x, 100);
+      assert.equal(rustRedactions[0].y, 700);
+      assert.equal(rustRedactions[0].width, 150);
+      assert.equal(rustRedactions[0].height, 30);
+      assert.equal(rustRedactions[0].style, 'mosaic');
+      assert.equal(rustRedactions[0].image_data, 'data:image/png;base64,sample123');
+    });
+  });
 });
+
 
 

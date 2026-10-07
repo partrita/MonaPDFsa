@@ -34,7 +34,7 @@ export const RedactionSidebar: React.FC<RedactionSidebarProps> = ({
       <div className="h-[52px] px-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
         <div className="flex items-center gap-2 font-bold text-gray-900 dark:text-gray-100">
           <span>가림 영역 목록</span>
-          <span className="px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400 font-semibold text-[10px]">
+          <span className="px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 font-semibold text-[10px]">
             총 {redactions.length}개
           </span>
         </div>
@@ -52,14 +52,14 @@ export const RedactionSidebar: React.FC<RedactionSidebarProps> = ({
           {currentPageItems.length > 0 && (
             <button
               onClick={() => onClearPageRedactions(currentPage)}
-              className="flex-1 py-1.5 px-2 bg-gray-200/80 dark:bg-gray-800 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400 text-gray-700 dark:text-gray-300 rounded text-[11px] font-medium transition"
+              className="flex-1 py-1.5 px-2 bg-white dark:bg-gray-800 hover:bg-love-50 hover:text-love-600 dark:hover:bg-love-950/40 dark:hover:text-love-400 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 rounded text-[11px] font-semibold transition"
             >
               현재 페이지 지우기
             </button>
           )}
           <button
             onClick={onClearAllRedactions}
-            className="flex-1 py-1.5 px-2 bg-gray-200/80 dark:bg-gray-800 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400 text-gray-700 dark:text-gray-300 rounded text-[11px] font-medium transition"
+            className="flex-1 py-1.5 px-2 bg-white dark:bg-gray-800 hover:bg-love-50 hover:text-love-600 dark:hover:bg-love-950/40 dark:hover:text-love-400 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 rounded text-[11px] font-semibold transition"
           >
             전체 비우기
           </button>

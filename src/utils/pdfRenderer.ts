@@ -64,6 +64,17 @@ export class PdfDocManager {
     return this.pdfDoc ? this.pdfDoc.numPages : 0;
   }
 
+  cancelCurrentRender() {
+    if (this.currentRenderTask) {
+      try {
+        this.currentRenderTask.cancel();
+      } catch (_) {
+        // Ignore cancellation error
+      }
+      this.currentRenderTask = null;
+    }
+  }
+
   async renderPage(
     pageNum: number,
     canvas: HTMLCanvasElement,
@@ -84,8 +95,9 @@ export class PdfDocManager {
     }
 
     const page = await this.pdfDoc.getPage(pageNum);
-    const viewport = page.getViewport({ scale, rotation });
-    const unscaledViewport = page.getViewport({ scale: 1.0, rotation: 0 });
+    const pageRotation = (page.rotate + (rotation || 0)) % 360;
+    const viewport = page.getViewport({ scale, rotation: pageRotation });
+    const unscaledViewport = page.getViewport({ scale: 1.0, rotation: pageRotation });
 
     // macOS Retina 디스플레이 등 High-DPI 환경 대응을 위한 devicePixelRatio 처리
     const dpr = window.devicePixelRatio || 1;
@@ -97,12 +109,16 @@ export class PdfDocManager {
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) throw new Error('2D 캔버스 컨텍스트를 가져올 수 없습니다.');
 
-    ctx.save();
-    ctx.scale(dpr, dpr);
+    // Reset canvas transformation matrix completely before drawing to avoid inversion
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined;
 
     const renderContext = {
       canvasContext: ctx,
       viewport: viewport,
+      ...(transform ? { transform } : {}),
     };
 
     const task = page.render(renderContext);
@@ -110,12 +126,11 @@ export class PdfDocManager {
     try {
       await task.promise;
     } finally {
-      ctx.restore();
-      if (this.currentRenderTask === task) this.currentRenderTask = null;
+      if (this.currentRenderTask === task) {
+        this.currentRenderTask = null;
+      }
     }
     if (seq !== this.renderSeq) throw { name: 'RenderingCancelledException' };
-
-    this.currentRenderTask = null;
 
     return {
       width: unscaledViewport.width,
@@ -128,6 +143,7 @@ export class PdfDocManager {
       rotation: viewport.rotation,
     };
   }
+
 
   /// 페이지 썸네일을 Data URL로 신속하게 렌더링하고 리소스를 즉시 해제
   async renderThumbnail(pageNum: number, maxDim: number = 180, rotation: number = 0): Promise<string> {

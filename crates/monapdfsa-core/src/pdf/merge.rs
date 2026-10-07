@@ -33,8 +33,13 @@ pub fn merge_pdfs(input_paths: &[String], output_path: &str) -> Result<String, S
 
     let mut documents: Vec<Document> = Vec::new();
     for path in input_paths {
-        let doc = Document::load(path)
-            .map_err(|e| format!("PDF 파일 '{}' 로드 실패: {}", path, e))?;
+        let is_image = is_image_path(path);
+        let doc = if is_image {
+            crate::pdf::image_import::image_to_pdf_document(path)?
+        } else {
+            Document::load(path)
+                .map_err(|e| format!("PDF 파일 '{}' 로드 실패: {}", path, e))?
+        };
         documents.push(doc);
     }
 
@@ -97,6 +102,15 @@ pub fn merge_pdfs(input_paths: &[String], output_path: &str) -> Result<String, S
 }
 
 /// 통합 페이지 관리의 드래그 앤 드롭 재배치, 페이지 삭제, 회전, 다중 문서 삽입 결과를
+fn is_image_path(path: &str) -> bool {
+    let p = std::path::Path::new(path);
+    match p.extension().and_then(|e| e.to_str()).map(|s| s.to_lowercase()) {
+        Some(ext) => matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "webp" | "bmp"),
+        None => false,
+    }
+}
+
+/// 통합 페이지 관리의 드래그 앤 드롭 재배치, 페이지 삭제, 회전, 다중 문서 삽입 결과를
 /// 하나의 최종 PDF 파일로 내보냅니다.
 pub fn organize_and_export_pages(
     page_specs: &[PageOrganizeSpec],
@@ -114,8 +128,13 @@ pub fn organize_and_export_pages(
 
     for spec in page_specs {
         if !doc_cache.contains_key(&spec.source_path) {
-            let mut doc = Document::load(&spec.source_path)
-                .map_err(|e| format!("문서 '{}' 로드 실패: {}", spec.source_path, e))?;
+            let is_image = is_image_path(&spec.source_path);
+            let mut doc = if is_image {
+                crate::pdf::image_import::image_to_pdf_document(&spec.source_path)?
+            } else {
+                Document::load(&spec.source_path)
+                    .map_err(|e| format!("문서 '{}' 로드 실패: {}", spec.source_path, e))?
+            };
             doc.renumber_objects_with(max_id);
             max_id = doc.max_id + 1;
 

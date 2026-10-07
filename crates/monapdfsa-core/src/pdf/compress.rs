@@ -5,6 +5,8 @@ use image::codecs::jpeg::JpegEncoder;
 use image::{ImageBuffer, RgbImage};
 use lopdf::{Dictionary, Document, Object, ObjectId, Stream};
 
+use crate::pdf::redact::{apply_redactions_to_doc, FlattenedPageSpec, RedactionRegion};
+
 /// 0-100 압축 레벨 → 최대 해상도 및 JPEG 품질 매핑
 /// 0: 최소 압축 (무손실 위주)
 /// 100: 최대 압축 (초경량 크기 목표)
@@ -59,6 +61,7 @@ struct ImageInfo {
 }
 
 /// PDF 이미지 콘텐츠를 디코딩하여 RGB 픽셀 버퍼로 변환
+#[allow(clippy::chunks_exact_to_as_chunks)]
 fn decode_to_rgb(img: &ImageInfo) -> Result<RgbImage, String> {
     let filters = img.filters.clone().unwrap_or_default();
     let raw: Vec<u8> = if filters.iter().any(|f| f == "DCTDecode" || f == "DCT") {
@@ -139,6 +142,19 @@ fn encode_jpeg(rgb: &RgbImage, quality: u8) -> Result<Vec<u8>, String> {
 
 /// 단일 PDF 파일을 지정된 레벨로 압축하여 output_path에 저장
 pub fn compress_pdf(input_path: &str, opts: &CompressionOptions) -> Result<CompressionResult, String> {
+    compress_pdf_with_redactions(input_path, opts, &[], &[])
+}
+
+/// Compress a PDF file with optional redactions applied first.
+///
+/// If redaction specifications are provided, apply them to the document
+/// before image re-encoding, object pruning, and stream compression.
+pub fn compress_pdf_with_redactions(
+    input_path: &str,
+    opts: &CompressionOptions,
+    flattened_pages: &[FlattenedPageSpec],
+    redactions: &[RedactionRegion],
+) -> Result<CompressionResult, String> {
     let original_bytes = std::fs::read(input_path)
         .map_err(|e| format!("원본 PDF 읽기 실패 '{}': {}", input_path, e))?;
     let original_size = original_bytes.len() as u64;
@@ -146,8 +162,14 @@ pub fn compress_pdf(input_path: &str, opts: &CompressionOptions) -> Result<Compr
     let mut doc = Document::load_mem(&original_bytes)
         .map_err(|e| format!("PDF 로드 실패: {}", e))?;
 
+    // Apply redactions if any are provided.
+    if !flattened_pages.is_empty() || !redactions.is_empty() {
+        apply_redactions_to_doc(&mut doc, flattened_pages, redactions)?;
+    }
+
     let pages = doc.get_pages().len();
     let (max_dim, jpeg_q) = level_params(opts.level);
+
 
     // 문서 내의 모든 Image XObject 탐색 (페이지 직접 참조 및 전역 XObject 포함)
     let mut seen_ids = std::collections::HashSet::new();

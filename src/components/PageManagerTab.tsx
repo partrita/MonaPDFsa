@@ -18,6 +18,7 @@ import {
   GripVertical,
   ChevronLeft,
   ChevronRight,
+  X,
 } from 'lucide-react';
 
 interface PageManagerTabProps {
@@ -46,6 +47,15 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
     active: boolean;
   } | null>(null);
 
+  // Auto-dismiss statusMessage after 4.5 seconds
+  useEffect(() => {
+    if (!statusMessage) return;
+    const timer = setTimeout(() => {
+      setStatusMessage(null);
+    }, 4500);
+    return () => clearTimeout(timer);
+  }, [statusMessage]);
+
   // Keep latest pages for window mouse handlers.
   useEffect(() => {
     pagesRef.current = pages;
@@ -66,7 +76,11 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
     try {
       const selected = await open({
         multiple: true,
-        filters: [{ name: 'PDF Documents', extensions: ['pdf'] }],
+        filters: [
+          { name: 'All Supported Files', extensions: ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'bmp'] },
+          { name: 'PDF Documents (*.pdf)', extensions: ['pdf'] },
+          { name: 'Image Files (*.png, *.jpg, *.jpeg, *.webp, *.bmp)', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp'] },
+        ],
       });
 
       if (!selected) return;
@@ -466,34 +480,39 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
 
   return (
     <div className="relative flex-1 flex flex-col h-full bg-gray-50 dark:bg-gray-950 overflow-hidden select-none">
-      {/* Header Toolbar */}
-      <div className="px-6 py-3.5 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between shadow-sm shrink-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20">
-            <LayoutGrid className="w-5 h-5" />
+      {/* Header Toolbar (Aligned to 52px matching Toolbar.tsx) */}
+      <div className="h-[52px] px-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between gap-2 overflow-x-auto text-xs shrink-0 select-none shadow-sm z-10">
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-sm shadow-amber-500/20 shrink-0">
+            <LayoutGrid className="w-4 h-4" />
           </div>
-          <div>
-            <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xs font-bold text-gray-900 dark:text-gray-100 whitespace-nowrap">
               PDF 페이지 관리
-              <span className="text-[11px] font-normal px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400">
-                총 {pages.length}페이지
-              </span>
             </h2>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-              마우스로 카드를 드래그하여 순서 변경 • 추가/삭제/회전/병합 및 분할 내보내기
-            </p>
+            <span className="text-[10px] font-semibold px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400 shrink-0">
+              총 {pages.length}페이지
+            </span>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2">
-
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={handleAddFiles}
+            disabled={isLoading}
+            className="flex items-center gap-1 px-2.5 py-1.5 bg-white dark:bg-gray-800 hover:bg-pine-50 dark:hover:bg-pine-950/50 text-pine-800 dark:text-pine-200 rounded-lg text-xs font-semibold transition active:scale-95 whitespace-nowrap border border-pine-300 dark:border-pine-700 shadow-xs"
+            title="PDF 및 이미지 파일 추가"
+          >
+            <FilePlus className="w-3.5 h-3.5 text-pine-700 dark:text-pine-300" />
+            <span>파일 추가</span>
+          </button>
 
           {pages.length > 0 && (
             <>
               <button
                 onClick={() => handleRotateAll(90)}
-                className="flex items-center gap-1 px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl text-xs transition"
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg text-xs font-medium transition active:scale-95 whitespace-nowrap border border-gray-300 dark:border-gray-700 shadow-xs"
                 title="모든 페이지 시계방향 90도 회전"
               >
                 <RotateCw className="w-3.5 h-3.5" />
@@ -502,7 +521,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
 
               <button
                 onClick={handleReverseOrder}
-                className="flex items-center gap-1 px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl text-xs transition"
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg text-xs font-medium transition active:scale-95 whitespace-nowrap border border-gray-300 dark:border-gray-700 shadow-xs"
                 title="페이지 순서 반전"
               >
                 <ArrowLeftRight className="w-3.5 h-3.5" />
@@ -511,22 +530,22 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
 
               <button
                 onClick={handleClearAll}
-                className="p-2 bg-gray-100 dark:bg-gray-800 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 text-gray-500 rounded-xl text-xs transition"
+                className="p-1.5 bg-white dark:bg-gray-800 hover:bg-love-50 hover:text-love-600 dark:hover:bg-love-950/40 text-gray-600 dark:text-gray-300 rounded-lg text-xs transition active:scale-95 border border-gray-300 dark:border-gray-700 shadow-xs"
                 title="전체 페이지 비우기"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
 
-              <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 mx-1" />
+              <div className="h-5 w-px bg-gray-200 dark:bg-gray-700 mx-1" />
 
               {/* Export Split by Breakpoints */}
               {splitBreakCount > 0 && (
                 <button
                   onClick={handleExportSplitByBreaks}
                   disabled={isExporting}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-600/20 transition active:scale-95"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-foam-600 hover:bg-foam-700 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:border-gray-200 dark:disabled:border-gray-700 text-white font-semibold rounded-lg text-xs shadow-sm shadow-foam-600/20 transition active:scale-95 whitespace-nowrap border border-foam-700/30 disabled:cursor-not-allowed"
                 >
-                  <Scissors className="w-4 h-4" />
+                  <Scissors className="w-3.5 h-3.5" />
                   <span>분할 지점 기준 저장 ({splitBreakCount + 1}개 파일)</span>
                 </button>
               )}
@@ -535,40 +554,41 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
               <button
                 onClick={handleExportMerged}
                 disabled={isExporting}
-                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-600/20 transition active:scale-95"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-pine-600 hover:bg-pine-700 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:border-gray-200 dark:disabled:border-gray-700 text-white font-semibold rounded-lg text-xs shadow-sm shadow-pine-600/20 transition active:scale-95 whitespace-nowrap border border-pine-700/30 disabled:cursor-not-allowed"
               >
-                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                <span>현재 순서로 병합 저장</span>
+                {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                <span>현재 순서로 저장</span>
               </button>
             </>
           )}
         </div>
       </div>
 
-      {/* Floating Status Notification */}
+
+      {/* Floating Status Notification Toast */}
       {statusMessage && (
-        <div
-          className={`mx-6 mt-4 p-3.5 rounded-xl border flex items-center justify-between gap-3 text-xs animate-in fade-in slide-in-from-top-1 duration-150 ${
-            statusMessage.type === 'success'
-              ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
-              : 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300'
-          }`}
-        >
-          <div className="flex items-center gap-2.5">
-            {statusMessage.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+        <div className="fixed bottom-5 right-5 z-50 max-w-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-xl shadow-2xl flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2 duration-200 select-none">
+          {statusMessage.type === 'success' ? (
+            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+          ) : (
+            <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+          )}
+          <div className="flex-1 text-xs">
+            <p className="font-semibold whitespace-pre-line text-gray-900 dark:text-gray-100">
+              {statusMessage.text}
+            </p>
+            {statusMessage.path && (
+              <p className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 mt-1 break-all">
+                저장 경로: {statusMessage.path}
+              </p>
             )}
-            <div>
-              <p className="font-semibold">{statusMessage.text}</p>
-              {statusMessage.path && (
-                <p className="text-[11px] font-mono text-emerald-700 dark:text-emerald-400 mt-0.5 break-all">
-                  저장 경로: {statusMessage.path}
-                </p>
-              )}
-            </div>
           </div>
+          <button
+            onClick={() => setStatusMessage(null)}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
@@ -585,14 +605,14 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
               </div>
               <div>
                 <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
-                  편집할 PDF 문서들을 불러오세요
+                  편집할 PDF 및 이미지 문서들을 불러오세요
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  여러 개의 PDF를 추가하여 한 화면에서 마우스 드래그로 순서 변경, 삭제, 회전, 분할을 손쉽게 수행할 수 있습니다.
+                  여러 개의 PDF 및 이미지(JPG, PNG 등)를 추가하여 한 화면에서 마우스 드래그로 순서 변경, 삭제, 회전, 분할 및 병합을 손쉽게 수행할 수 있습니다.
                 </p>
               </div>
-              <button className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs shadow-md shadow-sky-600/25 transition active:scale-95">
-                PDF 열기
+              <button className="px-5 py-2.5 rounded-xl bg-pine-600 hover:bg-pine-700 text-white font-semibold text-xs shadow-md shadow-pine-600/25 transition active:scale-95">
+                파일 열기 (PDF / 이미지)
               </button>
             </div>
           </div>
@@ -686,7 +706,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
                             e.stopPropagation();
                             handleMovePage(index, index - 1);
                           }}
-                          className="p-1 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/40 text-gray-400 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-gray-400 rounded transition"
+                          className="p-1 hover:bg-amber-100 hover:text-amber-800 dark:hover:bg-amber-950/50 dark:hover:text-amber-300 text-gray-600 dark:text-gray-300 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-gray-400 rounded transition"
                           title="앞으로 이동"
                         >
                           <ChevronLeft className="w-3.5 h-3.5" />
@@ -700,7 +720,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
                             e.stopPropagation();
                             handleMovePage(index, index + 1);
                           }}
-                          className="p-1 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/40 text-gray-400 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-gray-400 rounded transition"
+                          className="p-1 hover:bg-amber-100 hover:text-amber-800 dark:hover:bg-amber-950/50 dark:hover:text-amber-300 text-gray-600 dark:text-gray-300 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-gray-400 rounded transition"
                           title="뒤로 이동"
                         >
                           <ChevronRight className="w-3.5 h-3.5" />
@@ -717,7 +737,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
                             e.stopPropagation();
                             handleRotatePage(index, 90);
                           }}
-                          className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 rounded transition"
+                          className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 rounded transition"
                           title="시계방향 90도 회전"
                         >
                           <RotateCw className="w-3 h-3" />
@@ -732,8 +752,8 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
                           }}
                           className={`p-1 rounded transition ${
                             item.isSplitBreak
-                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 font-bold'
-                              : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-emerald-600'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 font-bold'
+                              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-emerald-700 dark:hover:text-emerald-300'
                           }`}
                           title={item.isSplitBreak ? '분할 지점 해제' : '이 페이지 뒤에서 분할'}
                         >
@@ -747,7 +767,7 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
                             e.stopPropagation();
                             handleRemovePage(item.id);
                           }}
-                          className="p-1 hover:bg-red-50 text-gray-400 hover:text-red-600 rounded transition"
+                          className="p-1 hover:bg-love-50 text-gray-600 dark:text-gray-400 hover:text-love-600 dark:hover:text-love-400 rounded transition"
                           title="이 페이지 제거"
                         >
                           <Trash2 className="w-3 h-3" />

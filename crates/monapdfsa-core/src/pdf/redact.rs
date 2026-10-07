@@ -670,6 +670,49 @@ fn process_page_structural_redaction(
     Ok(())
 }
 
+/// Apply hybrid redactions to an existing Document instance.
+///
+/// Flattened pages replace page contents with raster images.
+/// Vector redactions remove target text operations.
+pub fn apply_redactions_to_doc(
+    doc: &mut Document,
+    flattened_pages: &[FlattenedPageSpec],
+    redactions: &[RedactionRegion],
+) -> Result<(), String> {
+    let pages = doc.get_pages();
+    let mut max_id = doc.max_id;
+
+    // 1. Process high-resolution flattened pages first.
+    let mut flattened_page_nums = std::collections::HashSet::new();
+    for spec in flattened_pages {
+        flattened_page_nums.insert(spec.page);
+        let page_id = match pages.get(&spec.page) {
+            Some(&id) => id,
+            None => continue,
+        };
+        process_page_flattening(doc, page_id, spec.page, spec, &mut max_id)?;
+    }
+
+    // 2. Process structural vector redactions on remaining pages.
+    let mut by_page: BTreeMap<u32, Vec<&RedactionRegion>> = BTreeMap::new();
+    for r in redactions {
+        if !flattened_page_nums.contains(&r.page) {
+            by_page.entry(r.page).or_default().push(r);
+        }
+    }
+
+    for (page_num, regions) in by_page {
+        let page_id = match pages.get(&page_num) {
+            Some(&id) => id,
+            None => continue,
+        };
+        process_page_structural_redaction(doc, page_id, page_num, &regions, &mut max_id)?;
+    }
+
+    doc.max_id = max_id;
+    Ok(())
+}
+
 /// 지정된 PDF 파일에 스마트 하이브리드 가림 처리(고해상도 플래트닝 + 벡터 가림)를 적용합니다.
 ///
 /// **보안 가림 아키텍처**:
@@ -684,37 +727,8 @@ pub fn apply_redactions_hybrid(
     let mut doc = Document::load(input_path)
         .map_err(|e| format!("PDF 문서를 불러올 수 없습니다 '{}': {}", input_path, e))?;
 
-    let pages = doc.get_pages();
-    let mut max_id = doc.max_id;
+    apply_redactions_to_doc(&mut doc, flattened_pages, redactions)?;
 
-    // 1. 고해상도 플래트닝 페이지 우선 처리
-    let mut flattened_page_nums = std::collections::HashSet::new();
-    for spec in flattened_pages {
-        flattened_page_nums.insert(spec.page);
-        let page_id = match pages.get(&spec.page) {
-            Some(&id) => id,
-            None => continue,
-        };
-        process_page_flattening(&mut doc, page_id, spec.page, spec, &mut max_id)?;
-    }
-
-    // 2. 플래트닝되지 않은 나머지 페이지 중 벡터 가림 영역이 있는 경우 처리
-    let mut by_page: BTreeMap<u32, Vec<&RedactionRegion>> = BTreeMap::new();
-    for r in redactions {
-        if !flattened_page_nums.contains(&r.page) {
-            by_page.entry(r.page).or_default().push(r);
-        }
-    }
-
-    for (page_num, regions) in by_page {
-        let page_id = match pages.get(&page_num) {
-            Some(&id) => id,
-            None => continue,
-        };
-        process_page_structural_redaction(&mut doc, page_id, page_num, &regions, &mut max_id)?;
-    }
-
-    doc.max_id = max_id;
     doc.save(output_path)
         .map_err(|e| format!("가림 처리된 PDF 저장 실패 '{}': {}", output_path, e))?;
 
@@ -729,3 +743,4 @@ pub fn apply_redactions(
 ) -> Result<String, String> {
     apply_redactions_hybrid(input_path, output_path, &[], redactions)
 }
+
