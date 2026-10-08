@@ -3,7 +3,7 @@ name: Refresh security dependencies
 on:
   push:
     branches:
-      - 'security/npm-dependencies-2026-10'
+      - 'security/npm-dependencies-fix-2026-10'
   workflow_dispatch:
 
 permissions:
@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm install --package-lock-only --ignore-scripts source-map-js@1.2.2 postcss-selector-parser@7.1.6
+      - run: npm install --package-lock-only --ignore-scripts
       - name: Commit lockfile
         run: |
           if git diff --quiet -- package-lock.json; then
