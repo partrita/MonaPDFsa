@@ -1,12 +1,10 @@
 name: Refresh security dependencies
 
 on:
+  push:
+    branches:
+      - 'security/npm-dependencies-2026-10'
   workflow_dispatch:
-  pull_request:
-    paths:
-      - package.json
-      - package-lock.json
-      - .github/workflows/refresh-security-deps.yml
 
 permissions:
   contents: write
@@ -17,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref || github.ref_name }}
+          ref: ${{ github.ref_name }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
