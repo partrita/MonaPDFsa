@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm update --package-lock-only --ignore-scripts source-map-js postcss-selector-parser
+      - run: npm install --package-lock-only --ignore-scripts
       - name: Commit lockfile
         run: |
           if git diff --quiet -- package-lock.json; then
