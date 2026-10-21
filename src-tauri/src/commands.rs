@@ -99,7 +99,7 @@ pub fn cmd_pdf_organize_and_export(
 }
 
 
-/// 모자이크, 블랙아웃, 화이트아웃 가림 영역을 적용하고 기저 텍스트를 파기한 영구 가림 PDF를 저장하는 Tauri 커맨드
+/// 모자이크, 블랙아웃, 화이트아웃 가림 영역을 적용하고 원본 텍스트를 삭제한 영구 가림 PDF를 저장하는 Tauri 커맨드
 #[tauri::command]
 pub fn cmd_pdf_apply_redactions(
     input_path: String,
@@ -135,7 +135,7 @@ pub fn cmd_compress_pdf(
 }
 
 
-/// Base64 데이터를 디코딩하여 지정된 파일 경로에 직접 저장하는 유틸리티 커맨드
+/// Base64 데이터를 디코딩하여 지정된 파일 경로에 바로 저장하는 보조 커맨드
 #[tauri::command]
 pub fn save_file_bytes(output_path: String, base64_data: String) -> Result<String, String> {
     let b64_str = if let Some(pos) = base64_data.find(',') {

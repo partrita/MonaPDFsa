@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::Path;
 
-/// PDF 분할 구간(시작/종료 페이지 및 파일 접미사 레이블) 명세 구조체
+/// PDF 분할 구간(시작/종료 페이지 및 파일 접미사 레이블) 정보 구조체
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SplitRange {
     /// 생성될 파일의 이름 레이블 (미지정 시 자동 생성)
@@ -17,9 +17,9 @@ pub struct SplitRange {
 /// 단일 원본 PDF 문서를 지정된 페이지 범위 목록(`ranges`)에 따라 여러 개의 개별 PDF 파일로 분할하여 `output_dir`에 저장합니다.
 ///
 /// **동작 원리**:
-/// 1. 원본 문서를 로드한 뒤 전체 페이지 수를 산출합니다.
-/// 2. 각 범위(`start..=end`)마다 유지할 페이지 집합을 제외한 나머지 페이지들을 `delete_pages`로 삭제합니다.
-/// 3. `prune_objects`를 호출하여 불필요해진 고아 객체들을 제거하고 최적화된 상태로 파일 시스템에 저장합니다.
+/// 1. 원본 문서를 불러온 뒤 전체 페이지 수를 계산합니다.
+/// 2. 각 범위(`start..=end`)마다 유지할 페이지 집합을 제외한 나머지 페이지를 `delete_pages`로 삭제합니다.
+/// 3. `prune_objects`를 호출하여 불필요해진 고아 객체를 제거하고 최적화된 상태로 저장합니다.
 pub fn split_pdf(
     input_path: &str,
     ranges: &[SplitRange],

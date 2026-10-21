@@ -12,7 +12,7 @@ mod tests {
     use std::fs;
     use std::path::Path;
 
-    /// 단위 테스트용 단일 페이지 더미 PDF 문서를 메모리 및 파일로 생성하는 헬퍼 함수
+    /// 단위 테스트용 단일 페이지 더미 PDF를 메모리와 파일로 만드는 도우미 함수
     fn create_dummy_pdf(path: &str, text: &str) {
         let mut doc = Document::with_version("1.5");
         let pages_id = doc.new_object_id();
@@ -113,7 +113,7 @@ mod tests {
         assert!(Path::new(&files[0]).exists());
         assert!(Path::new(&files[1]).exists());
 
-        // 3. [보안 가림 및 OCR/텍스트 파기 테스트]
+        // 3. [보안 가림 및 OCR/텍스트 삭제 테스트]
         // 비밀번호 텍스트 위치(100, 700)에 블랙아웃 가림 적용
         let redacted_pdf = tmp_dir.join("redacted.pdf");
         let redactions = vec![redact::RedactionRegion {
@@ -146,7 +146,7 @@ mod tests {
         let content_str = String::from_utf8_lossy(&content_data);
         assert!(
             !content_str.contains("SECRET_PASSWORD_123"),
-            "가림 처리된 스트림에 기저 텍스트가 남아있지 않아야 합니다!"
+            "가림 처리된 스트림에 원본 텍스트가 남아 있으면 안 됩니다!"
         );
 
         // 4. [통합 페이지 스튜디오 재배치/회전 테스트]
@@ -172,12 +172,12 @@ mod tests {
         let _ = fs::remove_dir_all(tmp_dir);
     }
 
-    /// 단위 테스트용 더미 PDF 생성 ( 이미지 + 텍스트 포함 )
+    /// 단위 테스트용 더미 PDF 생성 (이미지와 텍스트 포함)
     fn create_dummy_pdf_with_image(path: &str, text: &str) {
         use image::codecs::jpeg::JpegEncoder;
         use image::{ImageBuffer, Rgb};
 
-        // 테스트용 JPEG 이미지를 메모리로 생성 ( image 크레이트 사용 )
+        // 테스트용 JPEG 이미지를 메모리에 생성 (image 크레이트 사용)
         let img_buf = ImageBuffer::from_fn(400, 300, |x, y| {
             let r = ((x * 255) / 400) as u8;
             let g = ((y * 255) / 300) as u8;

@@ -7,7 +7,9 @@ interface RedactionSidebarProps {
   onClose: () => void;
   redactions: RedactionItem[];
   currentPage: number;
+  selectedRedactionId: string | null;
   onNavigatePage: (page: number) => void;
+  onSelectRedaction: (id: string | null) => void;
   onRemoveRedaction: (id: string) => void;
   onClearPageRedactions: (page: number) => void;
   onClearAllRedactions: () => void;
@@ -18,7 +20,9 @@ export const RedactionSidebar: React.FC<RedactionSidebarProps> = ({
   onClose,
   redactions,
   currentPage,
+  selectedRedactionId,
   onNavigatePage,
+  onSelectRedaction,
   onRemoveRedaction,
   onClearPageRedactions,
   onClearAllRedactions,
@@ -87,6 +91,8 @@ export const RedactionSidebar: React.FC<RedactionSidebarProps> = ({
                       key={r.id}
                       item={r}
                       index={i + 1}
+                      selected={selectedRedactionId === r.id}
+                      onSelect={() => onSelectRedaction(r.id)}
                       onRemove={() => onRemoveRedaction(r.id)}
                       onJump={() => onNavigatePage(r.page)}
                     />
@@ -107,6 +113,8 @@ export const RedactionSidebar: React.FC<RedactionSidebarProps> = ({
                       key={r.id}
                       item={r}
                       index={i + 1}
+                      selected={selectedRedactionId === r.id}
+                      onSelect={() => onSelectRedaction(r.id)}
                       onRemove={() => onRemoveRedaction(r.id)}
                       onJump={() => onNavigatePage(r.page)}
                     />
@@ -124,11 +132,20 @@ export const RedactionSidebar: React.FC<RedactionSidebarProps> = ({
 const RedactionCard: React.FC<{
   item: RedactionItem;
   index: number;
+  selected: boolean;
+  onSelect: () => void;
   onRemove: () => void;
   onJump: () => void;
-}> = ({ item, index, onRemove, onJump }) => {
+}> = ({ item, index, selected, onSelect, onRemove, onJump }) => {
   return (
-    <div className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800/80 hover:border-sky-300 dark:hover:border-sky-700 transition flex items-center justify-between group shadow-sm">
+    <div
+      className={`p-2.5 rounded-lg border bg-white dark:bg-gray-800/80 transition flex items-center justify-between group shadow-sm cursor-pointer ${
+        selected
+          ? 'border-sky-500 ring-1 ring-sky-500'
+          : 'border-gray-200 dark:border-gray-800 hover:border-sky-300 dark:hover:border-sky-700'
+      }`}
+      onClick={onSelect}
+    >
       <div className="flex items-center gap-2.5 overflow-hidden cursor-pointer" onClick={onJump}>
         <div className="w-8 h-8 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 shrink-0">
           {item.style === 'mosaic' ? (

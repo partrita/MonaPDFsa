@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **PDF Compression Optimization**: Upgrade `lopdf` to 0.45, introduce dedicated image optimizer with color model resolution, prevent compression results from exceeding original file size, and clean up structure tree safely.
+- **Pre-save Redaction Editing Regression**: Restore move and resize controls for mosaic, blackout, and whiteout regions after a refactor removed them.
 
 ## [0.2.1] - 2026-10-07
 

@@ -25,6 +25,7 @@ export default function App() {
   const [mode, setMode] = useState<RedactionMode>('hand');
   const [blockSize, setBlockSize] = useState(10);
   const [redactions, setRedactions] = useState<RedactionItem[]>([]);
+  const [selectedRedactionId, setSelectedRedactionId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [compressOpen, setCompressOpen] = useState(false);
@@ -93,7 +94,7 @@ export default function App() {
 
       setIsSaving(true);
 
-      // 1. 가림 처리가 포함된 페이지들을 300 DPI 초고화질 이미지로 래스터라이즈(Flattening)
+      // 1. 가림 처리가 있는 페이지를 300 DPI 고해상도 이미지로 변환(Flattening)
       const uniqueRedactedPages = Array.from(new Set(redactions.map((r) => r.page)));
       const flattenedPages: Array<{
         page: number;
@@ -274,18 +275,30 @@ export default function App() {
 
   const handleAddRedaction = (item: RedactionItem) => {
     setRedactions((prev) => [...prev, item]);
+    setSelectedRedactionId(item.id);
+  };
+
+  const handleUpdateRedaction = (id: string, updates: Partial<Pick<RedactionItem, 'normX' | 'normY' | 'normWidth' | 'normHeight' | 'blockSize'>> & { imageData?: string }) => {
+    setRedactions((prev) => prev.map((r) => (r.id === id ? { ...r, ...updates } : r)));
   };
 
   const handleRemoveRedaction = (id: string) => {
     setRedactions((prev) => prev.filter((r) => r.id !== id));
+    if (selectedRedactionId === id) setSelectedRedactionId(null);
   };
 
   const handleClearPageRedactions = (page: number) => {
     setRedactions((prev) => prev.filter((r) => r.page !== page));
+    setSelectedRedactionId(null);
   };
 
   const handleClearAllRedactions = () => {
     setRedactions([]);
+    setSelectedRedactionId(null);
+  };
+
+  const handleSelectRedaction = (id: string | null) => {
+    setSelectedRedactionId(id);
   };
 
   return (
@@ -335,8 +348,11 @@ export default function App() {
             mode={mode}
             blockSize={blockSize}
             redactions={redactions}
+            selectedRedactionId={selectedRedactionId}
             onAddRedaction={handleAddRedaction}
+            onUpdateRedaction={handleUpdateRedaction}
             onRemoveRedaction={handleRemoveRedaction}
+            onSelectRedaction={handleSelectRedaction}
             onOpenFile={() => handleOpenFile()}
             hasDocument={!!loadedPdf}
           />
@@ -346,7 +362,9 @@ export default function App() {
             onClose={() => setSidebarOpen(false)}
             redactions={redactions}
             currentPage={currentPage}
+            selectedRedactionId={selectedRedactionId}
             onNavigatePage={handlePageChange}
+            onSelectRedaction={handleSelectRedaction}
             onRemoveRedaction={handleRemoveRedaction}
             onClearPageRedactions={handleClearPageRedactions}
             onClearAllRedactions={handleClearAllRedactions}

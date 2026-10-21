@@ -99,7 +99,7 @@ export class PdfDocManager {
     const viewport = page.getViewport({ scale, rotation: pageRotation });
     const unscaledViewport = page.getViewport({ scale: 1.0, rotation: pageRotation });
 
-    // macOS Retina 디스플레이 등 High-DPI 환경 대응을 위한 devicePixelRatio 처리
+    // macOS Retina 디스플레이 등 High-DPI 환경에 맞춘 devicePixelRatio 처리
     const dpr = window.devicePixelRatio || 1;
     canvas.width = Math.floor(viewport.width * dpr);
     canvas.height = Math.floor(viewport.height * dpr);
@@ -145,7 +145,7 @@ export class PdfDocManager {
   }
 
 
-  /// 페이지 썸네일을 Data URL로 신속하게 렌더링하고 리소스를 즉시 해제
+  /// 페이지 썸네일을 Data URL로 빠르게 렌더링하고 리소스를 바로 해제
   async renderThumbnail(pageNum: number, maxDim: number = 180, rotation: number = 0): Promise<string> {
     if (!this.pdfDoc) return '';
     try {
@@ -172,8 +172,8 @@ export class PdfDocManager {
   }
 
   /**
-   * 가림 처리(모자이크, 블랙아웃, 화이트아웃)가 적용된 페이지를 고해상도로 래스터라이즈(Flattening)하여
-   * 기저 텍스트/어노테이션이 완전히 픽셀화된 JPEG 이미지 데이터를 생성합니다.
+   * 가림 처리(모자이크, 블랙아웃, 화이트아웃)가 적용된 페이지를 고해상도 이미지로 변환(Flattening)하여
+   * 원본 텍스트/어노테이션이 완전히 픽셀로 바뀐 JPEG 데이터를 만듭니다.
    */
   async renderFlattenedRedactedPage(
     pageNum: number,
@@ -194,7 +194,7 @@ export class PdfDocManager {
     // 1. PDF 원본 벡터 페이지를 고해상도로 렌더링
     await page.render({ canvasContext: ctx, viewport }).promise;
 
-    // 2. 가림 영역을 캔버스 픽셀에 직접 굽기 (Bake / Flattening)
+    // 2. 가림 영역을 캔버스 픽셀에 직접 적용 (Bake / Flattening)
     for (const r of pageRedactions) {
       const rx = r.normX * canvas.width;
       const ry = r.normY * canvas.height;
@@ -212,7 +212,7 @@ export class PdfDocManager {
       }
     }
 
-    // 3. 고품질 JPEG Data URL 추출 (PDF Image XObject로 즉시 패키징)
+    // 3. 고품질 JPEG Data URL 생성 (PDF Image XObject로 바로 삽입)
     const imageData = canvas.toDataURL('image/jpeg', 0.9);
     page.cleanup();
     canvas.width = 0;
@@ -234,7 +234,7 @@ export class PdfDocManager {
   }
 }
 
-/// 단일 파일용 일회성 썸네일 생성 헬퍼 함수
+/// 단일 파일용 일회성 썸네일 생성 도우미 함수
 export async function generateThumbnailFromBase64(
   base64Data: string,
   pageNum: number = 1,
@@ -253,7 +253,7 @@ export async function generateThumbnailFromBase64(
   }
 }
 
-/// 다중 페이지 배치 썸네일 생성 헬퍼 함수 (단일 Document 로드 + 점진적 청크 스트리밍)
+/// 다중 페이지 배치 썸네일 생성 도우미 함수 (단일 Document 로드 + 점진적 청크 스트리밍)
 export async function generateThumbnailsBatch(
   base64Data: string,
   pageNumbers: number[],

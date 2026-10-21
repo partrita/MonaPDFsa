@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::io::Write;
 
-/// 프론트엔드에서 전달되는 고해상도 래스터라이즈(Flattening) 가림 페이지 스펙
+/// 프론트엔드에서 전달되는 고해상도 변환(Flattening) 가림 페이지 정보
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FlattenedPageSpec {
     /// 1부터 시작하는 대상 페이지 번호
@@ -42,7 +42,7 @@ pub struct RedactionRegion {
     pub image_data: Option<String>,
 }
 
-/// 바이트 데이터를 zlib (FlateDecode) 알고리즘으로 압축하여 PDF 스트림에 임베딩할 수 있도록 변환합니다.
+/// 바이트 데이터를 zlib(FlateDecode)로 압축하여 PDF 스트림에 넣을 수 있게 변환합니다.
 fn zlib_compress(data: &[u8]) -> Result<Vec<u8>, String> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     encoder
@@ -53,7 +53,7 @@ fn zlib_compress(data: &[u8]) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("zlib 인코딩 완료 실패: {}", e))
 }
 
-/// Base64 Data URL 또는 일반 Base64 문자열로부터 순수 바이너리 바이트를 디코딩합니다.
+/// Base64 Data URL 또는 일반 Base64 문자열에서 순수 바이너리 바이트를 디코딩합니다.
 fn decode_base64_data(data_url: &str) -> Result<Vec<u8>, String> {
     let b64_str = if let Some(pos) = data_url.find(',') {
         &data_url[pos + 1..]
@@ -65,8 +65,8 @@ fn decode_base64_data(data_url: &str) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("Base64 이미지 디코딩 실패: {}", e))
 }
 
-/// 단일 페이지를 300 DPI 초고화질 래스터라이즈(Flattening) 이미지로 완전히 교체합니다.
-/// **보안 핵심**: 기저의 모든 텍스트 연산자, 폰트, 어노테이션, OCR 레이어가 영구적으로 100% 소멸합니다.
+/// 단일 페이지를 300 DPI 고해상도 래스터 이미지로 완전히 교체합니다.
+/// **보안 핵심**: 문서의 모든 텍스트 연산자, 폰트, 어노테이션, OCR 레이어가 영구적으로 100% 삭제됩니다.
 fn process_page_flattening(
     doc: &mut Document,
     page_id: ObjectId,
@@ -78,7 +78,7 @@ fn process_page_flattening(
     let is_jpeg = img_bytes.starts_with(&[0xFF, 0xD8, 0xFF]);
 
     let (img_width, img_height, img_stream) = if is_jpeg {
-        // JPEG 포맷: PDF의 네이티브 DCTDecode 필터를 사용하여 재압축 없이 원본 화질/초고속 임베딩
+        // JPEG 포맷: PDF의 네이티브 DCTDecode 필터를 사용하여 재압축 없이 원본 화질 그대로 빠르게 삽입
         let dyn_img = image::load_from_memory(&img_bytes)
             .map_err(|e| format!("JPEG 이미지 분석 실패: {}", e))?;
         let (w, h) = dyn_img.dimensions();
@@ -123,7 +123,7 @@ fn process_page_flattening(
     let img_obj_id = (*max_id, 0);
     doc.objects.insert(img_obj_id, Object::Stream(img_stream));
 
-    // 1. 기존 페이지 컨텐츠 스트림 ID 목록 수집 (모두 삭제하여 텍스트 데이터 파기)
+    // 1. 기존 페이지 컨텐츠 스트림 ID 목록 수집 (모두 삭제하여 텍스트 데이터 제거)
     let old_content_ids: Vec<ObjectId> = match doc.get_object(page_id) {
         Ok(Object::Dictionary(dict)) => match dict.get(b"Contents") {
             Ok(Object::Reference(id)) => vec![*id],
@@ -157,13 +157,13 @@ fn process_page_flattening(
     );
     doc.objects.insert(new_content_id, Object::Stream(content_stream));
 
-    // 3. 페이지 딕셔너리 재구성: 기저 텍스트/폰트/어노테이션 완전 파기 및 새 이미지 리소스만 할당
+    // 3. 페이지 딕셔너리 재구성: 원본 텍스트/폰트/어노테이션을 완전히 삭제하고 새 이미지 리소스만 할당
     if let Ok(page_obj) = doc.get_object_mut(page_id) {
         if let Ok(page_dict) = page_obj.as_dict_mut() {
             // Contents를 새 플래트닝 이미지 드로잉 스트림으로 교체
             page_dict.set("Contents", Object::Reference(new_content_id));
 
-            // Resources를 새 이미지 XObject만 포함하도록 교체 (기존 폰트/인코딩 완전 파기)
+            // Resources를 새 이미지 XObject만 포함하도록 교체 (기존 폰트/인코딩 완전히 삭제)
             let mut xobjects = Dictionary::new();
             xobjects.set(res_name.as_bytes().to_vec(), Object::Reference(img_obj_id));
             let mut resources = Dictionary::new();
@@ -186,7 +186,7 @@ fn process_page_flattening(
         }
     }
 
-    // 4. 기존 구버전 컨텐츠 스트림 객체들 메모리에서 제거
+    // 4. 이전 컨텐츠 스트림 객체를 메모리에서 제거
     for cid in old_content_ids {
         doc.objects.remove(&cid);
     }
@@ -223,7 +223,7 @@ fn resolve_page_resources(doc: &Document, mut node: ObjectId) -> Option<Dictiona
     }
 }
 
-/// 페이지 리소스에 새 XObject들을 등록합니다.
+/// 페이지 리소스에 새 XObject를 등록합니다.
 fn add_xobjects_to_page_resources(
     doc: &mut Document,
     page_id: ObjectId,
@@ -293,7 +293,7 @@ fn add_xobjects_to_page_resources(
     }
 }
 
-/// 텍스트 세그먼트 좌표 및 추정 폭이 가림 영역과 겹치는지 엄밀히 검사합니다.
+/// 텍스트 세그먼트 좌표와 추정 폭이 가림 영역과 겹치는지 정확히 검사합니다.
 fn is_text_in_redactions(
     text_x: f64,
     text_y: f64,
@@ -716,8 +716,8 @@ pub fn apply_redactions_to_doc(
 /// 지정된 PDF 파일에 스마트 하이브리드 가림 처리(고해상도 플래트닝 + 벡터 가림)를 적용합니다.
 ///
 /// **보안 가림 아키텍처**:
-/// - `flattened_pages`에 포함된 페이지는 300 DPI 초고화질 이미지로 래스터라이즈(Flattening)되어 기저 텍스트/글리프/어노테이션이 100% 영구 소멸 (드래그/OCR 불가)
-/// - 가림이 없는 페이지는 원본 벡터 PDF 품질과 텍스트 선택성을 온전히 보존
+/// - `flattened_pages`에 포함된 페이지는 300 DPI 고해상도 이미지로 변환(Flattening)되어 원본 텍스트/글리프/어노테이션이 100% 영구 삭제됩니다(드래그/OCR 불가).
+/// - 가리지 않은 페이지는 원본 벡터 PDF 품질과 텍스트 선택성을 그대로 보존합니다.
 pub fn apply_redactions_hybrid(
     input_path: &str,
     output_path: &str,

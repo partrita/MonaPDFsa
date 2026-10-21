@@ -2,7 +2,7 @@ use lopdf::{dictionary, Document, Object, Stream};
 use std::fs;
 use std::path::Path;
 
-/// 테스트 및 시연용 3페이지 샘플 PDF 문서(`sample_document.pdf`)를 생성하는 유틸리티 바이너리
+/// 테스트와 시연에 사용할 3페이지 샘플 PDF(`sample_document.pdf`)를 만드는 도우미 바이너리
 fn main() {
     let mut doc = Document::with_version("1.5");
     let pages_id = doc.new_object_id();

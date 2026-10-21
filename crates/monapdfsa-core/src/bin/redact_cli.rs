@@ -7,7 +7,7 @@ use monapdfsa_core::pdf::redact::{
 use std::fs;
 use std::path::Path;
 
-/// 300 DPI 초고화질 플래트닝 테스트용 합성 이미지 Data URL을 생성합니다.
+/// 300 DPI 고해상도 플래트닝 테스트에 사용할 합성 이미지 Data URL을 만듭니다.
 fn create_test_flattened_page_image(width: u32, height: u32) -> String {
     let mut img = ImageBuffer::<Rgb<u8>, Vec<u8>>::new(width, height);
 
@@ -126,7 +126,7 @@ fn main() {
     }];
 
     println!("🔧 스마트 하이브리드 가림 처리 계획:");
-    println!("  - [Page 1] 300 DPI 초고화질 플래트닝 (기저 텍스트/글리프 100% 원천 소멸)");
+    println!("  - [Page 1] 300 DPI 고해상도 플래트닝 (원본 텍스트/글리프 100% 영구 삭제)");
     println!("  - [Page 2] 벡터 스트림 가림 처리");
     println!("  - [Page 3] 원본 벡터 PDF 품질 유지");
 
@@ -143,7 +143,7 @@ fn main() {
     let pages = doc.get_pages();
     println!("   - 총 페이지 수: {} 페이지", pages.len());
 
-    // Page 1 스트림 검사: 플래트닝 적용으로 어떠한 텍스트 데이터도 남아있지 않아야 함
+    // Page 1 스트림 검사: 플래트닝을 적용했으므로 텍스트 데이터가 남아 있으면 안 됨
     if let Some(&p1_id) = pages.get(&1) {
         let content_bytes = doc.get_page_content(p1_id);
         let content_str = String::from_utf8_lossy(&content_bytes);
@@ -157,7 +157,7 @@ fn main() {
         let check_image_do = content_str.contains("Do");
 
         println!(
-            "   ✓ 기저 텍스트 100% 영구 파기(드래그/OCR 불가): {}",
+            "   ✓ 원본 텍스트 100% 영구 삭제(드래그/OCR 불가): {}",
             if check_no_text {
                 "PASS (완벽 차단)"
             } else {
@@ -179,22 +179,22 @@ fn main() {
         );
     }
 
-    // Page 3 검사: 비가림 페이지는 텍스트가 정상 보존되어야 함
+    // Page 3 검사: 가리지 않은 페이지는 텍스트가 그대로 남아야 함
     if let Some(&p3_id) = pages.get(&3) {
         let content_bytes = doc.get_page_content(p3_id);
         let content_str = String::from_utf8_lossy(&content_bytes);
         let check_p3 = content_str.contains("PAGE 3");
         println!(
-            "   ✓ 비가림 페이지 원본 벡터/텍스트 보존: {}",
+            "   ✓ 가리지 않은 페이지의 원본 벡터/텍스트 보존: {}",
             if check_p3 {
                 "PASS (정상 유지)"
             } else {
                 "FAIL"
             }
         );
-        assert!(check_p3, "비가림 페이지가 손상되었습니다!");
+        assert!(check_p3, "가리지 않은 페이지가 손상되었습니다!");
     }
 
-    println!("\n🎉 모든 테스트 및 보안 검증이 완벽하게 통과되었습니다!");
+    println!("\n🎉 모든 테스트와 보안 검증을 통과했습니다!");
     println!("============================================================\n");
 }

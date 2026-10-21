@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 
-/// 통합 페이지 관리에서 각 페이지의 원본 위치 및 회전 각도를 나타내는 명세 구조체
+/// 통합 페이지 관리에서 각 페이지의 원본 위치와 회전 각도를 나타내는 정보 구조체
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageOrganizeSpec {
     /// 원본 PDF 파일 경로
@@ -18,7 +18,7 @@ pub struct PageOrganizeSpec {
 ///
 /// **동작 원리**:
 /// 1. 각 입력 PDF 문서를 로드하고, 객체 ID 충돌을 방지하기 위해 `renumber_objects_with`로 객체 식별자를 재할당합니다.
-/// 2. 모든 문서의 페이지 객체 참조(`/Pages` Kids)를 새로운 통합 타겟 문서로 수집합니다.
+/// 2. 모든 문서의 페이지 객체 참조(`/Pages` Kids)를 새로운 통합 대상 문서로 모읍니다.
 /// 3. 새로운 루트 `/Pages` 및 `/Catalog` 객체를 생성하여 연결하고, 불필요한 고아 객체를 정리(`prune_objects`)한 뒤 저장합니다.
 pub fn merge_pdfs(input_paths: &[String], output_path: &str) -> Result<String, String> {
     if input_paths.is_empty() {
@@ -48,7 +48,7 @@ pub fn merge_pdfs(input_paths: &[String], output_path: &str) -> Result<String, S
     let mut target_page_ids: Vec<Object> = Vec::new();
 
     for mut doc in documents {
-        // ID 충돌 방지를 위한 객체 번호 재부여
+        // ID 충돌을 막기 위해 객체 번호 재할당
         doc.renumber_objects_with(max_id);
         max_id = doc.max_id + 1;
 
@@ -120,7 +120,7 @@ pub fn organize_and_export_pages(
         return Err("내보낼 페이지 목록이 비어 있습니다.".to_string());
     }
 
-    // 1. 소스 파일 경로별 원본 문서 로드 및 ID 재부여 (문서별 1회만 처리하여 O(N^2) 객체 복제 방지)
+    // 1. 소스 파일 경로별 원본 문서 로드 및 ID 재할당 (문서별 1회만 처리하여 O(N^2) 객체 복제 방지)
     let mut doc_cache: HashMap<String, Document> = HashMap::new();
     let mut page_maps: HashMap<String, HashMap<u32, lopdf::ObjectId>> = HashMap::new();
     let mut target_doc = Document::with_version("1.5");

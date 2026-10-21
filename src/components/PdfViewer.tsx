@@ -13,8 +13,11 @@ interface PdfViewerProps {
   mode: RedactionMode;
   blockSize: number;
   redactions: RedactionItem[];
+  selectedRedactionId: string | null;
   onAddRedaction: (item: RedactionItem) => void;
+  onUpdateRedaction: (id: string, updates: Partial<Pick<RedactionItem, 'normX' | 'normY' | 'normWidth' | 'normHeight' | 'blockSize'>> & { imageData?: string }) => void;
   onRemoveRedaction: (id: string) => void;
+  onSelectRedaction: (id: string | null) => void;
   onOpenFile: () => void;
   hasDocument: boolean;
 }
@@ -28,8 +31,11 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   mode,
   blockSize,
   redactions,
+  selectedRedactionId,
   onAddRedaction,
+  onUpdateRedaction,
   onRemoveRedaction,
+  onSelectRedaction,
   onOpenFile,
   hasDocument,
 }) => {
@@ -208,8 +214,11 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
             mode={mode}
             blockSize={blockSize}
             redactions={pageRedactions}
+            selectedRedactionId={selectedRedactionId}
             onAddRedaction={onAddRedaction}
+            onUpdateRedaction={onUpdateRedaction}
             onRemoveRedaction={onRemoveRedaction}
+            onSelectRedaction={onSelectRedaction}
           />
         )}
 
