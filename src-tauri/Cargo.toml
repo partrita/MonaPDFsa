@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.2.1"
+version = "0.2.2"
 description = "A Tauri App for PDF tool"
 authors = ["Taeyoon Kim <deepthough@postech.ac.kr>"]
 license = "MIT"
@@ -31,5 +31,5 @@ tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
-lopdf = "0.35"
+lopdf = "0.45"
 base64 = "0.22"

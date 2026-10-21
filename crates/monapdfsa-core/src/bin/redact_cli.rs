@@ -145,7 +145,7 @@ fn main() {
 
     // Page 1 스트림 검사: 플래트닝 적용으로 어떠한 텍스트 데이터도 남아있지 않아야 함
     if let Some(&p1_id) = pages.get(&1) {
-        let content_bytes = doc.get_page_content(p1_id).unwrap_or_default();
+        let content_bytes = doc.get_page_content(p1_id);
         let content_str = String::from_utf8_lossy(&content_bytes);
 
         println!("   Page 1 Content Stream:\n{}", content_str);
@@ -181,7 +181,7 @@ fn main() {
 
     // Page 3 검사: 비가림 페이지는 텍스트가 정상 보존되어야 함
     if let Some(&p3_id) = pages.get(&3) {
-        let content_bytes = doc.get_page_content(p3_id).unwrap_or_default();
+        let content_bytes = doc.get_page_content(p3_id);
         let content_str = String::from_utf8_lossy(&content_bytes);
         let check_p3 = content_str.contains("PAGE 3");
         println!(

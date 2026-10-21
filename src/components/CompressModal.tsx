@@ -21,6 +21,7 @@ export interface CompressionResult {
   reduction_percent: number;
   pages: number;
   image_count: number;
+  structure_stripped: boolean;
 }
 
 interface CompressModalProps {

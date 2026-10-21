@@ -1,11 +1,11 @@
 [package]
 name = "monapdfsa-core"
-version = "0.2.1"
+version = "0.2.2"
 description = "Core PDF processing and structural redaction engine for MonaPDFsa"
 edition = "2021"
 
 [dependencies]
-lopdf = "0.35"
+lopdf = "0.45"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 base64 = "0.22"
 flate2 = "1.0"

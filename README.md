@@ -2,10 +2,15 @@
 
 > Only PDF Editor that I need, and it's free!
 
-
 A high-performance, cross-platform desktop PDF viewer, mosaic/blackout redaction tool, and visual drag-and-drop PDF page organizer built with Rust's Tauri v2 and React + TypeScript + Tailwind CSS.
 
 Fully supports Windows, macOS, and Linux.
+
+## TODO
+
+- [x] 이미 설정한 모자이크의 크기 변경 가능
+- [x] 파일 저장전에는 모자이크와 블랙아웃, 화이트아웃의 위치를 변경 및 크기 변경을 드래그로 할 수 있게 하기
+
 
 ---
 

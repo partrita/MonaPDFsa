@@ -6,7 +6,7 @@ export interface TechEntry {
 
 export const APP_INFO = {
   name: 'MonaPDFsa',
-  version: '0.2.1',
+  version: '0.2.2',
   license: 'MIT',
   author: 'Taeyoon Kim',
   github: 'https://github.com/partrita/MonaPDFsa',
@@ -19,7 +19,7 @@ export const ARCHITECTURE: TechEntry[] = [
   { label: 'Styling', value: 'TailwindCSS 3.4.17 + PostCSS' },
   { label: 'Runtime', value: 'Tauri 2.11.3 (WebKit on macOS)' },
   { label: 'Engine', value: 'Rust (edition 2021, MSRV 1.77.2)' },
-  { label: 'PDF Core', value: 'monapdfsa-core 0.2.1 (custom, built on lopdf 0.35.0)' },
+  { label: 'PDF Core', value: 'monapdfsa-core 0.2.2 (custom, built on lopdf 0.45.0)' },
   { label: 'PDF Render', value: 'pdfjs-dist 4.10.38' },
   { label: 'Icons', value: 'lucide-react 1.35.0' },
 ];

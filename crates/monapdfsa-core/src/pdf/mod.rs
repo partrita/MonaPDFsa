@@ -1,5 +1,6 @@
 pub mod compress;
 pub mod image_import;
+pub mod image_optimizer;
 pub mod merge;
 pub mod redact;
 pub mod split;
@@ -141,7 +142,7 @@ mod tests {
         let page1_id = pages.get(&1).unwrap();
         
         // 컨텐츠 스트림에서 원본 비밀 텍스트가 사라졌는지 확인
-        let content_data = redacted_doc.get_page_content(*page1_id).unwrap();
+        let content_data = redacted_doc.get_page_content(*page1_id);
         let content_str = String::from_utf8_lossy(&content_data);
         assert!(
             !content_str.contains("SECRET_PASSWORD_123"),
@@ -282,7 +283,7 @@ mod tests {
         let out_doc = Document::load(output.to_str().unwrap()).unwrap();
         let pages = out_doc.get_pages();
         let page_id = pages.get(&1).unwrap();
-        let content = out_doc.get_page_content(*page_id).unwrap();
+        let content = out_doc.get_page_content(*page_id);
         let content_str = String::from_utf8_lossy(&content);
         assert!(
             content_str.contains("COMPRESS_TEST_TEXT_123"),
@@ -300,6 +301,41 @@ mod tests {
         );
         assert!(res0.is_ok(), "무손일 압축 실패: {:?}", res0.err());
         assert!(output0.exists());
+
+        let _ = fs::remove_dir_all(tmp_dir);
+    }
+
+    #[test]
+    fn test_compress_never_grows_file() {
+        use crate::pdf::compress::{compress_pdf, CompressionOptions};
+
+        let tmp_dir = std::env::temp_dir().join("monapdfsa_compress_no_growth_tests");
+        let _ = fs::create_dir_all(&tmp_dir);
+
+        let input = tmp_dir.join("input.pdf");
+        create_dummy_pdf_with_image(input.to_str().unwrap(), "NO_GROWTH_TEST");
+        let original_size = fs::metadata(&input).unwrap().len();
+
+        for level in [0u8, 50, 100] {
+            let output = tmp_dir.join(format!("output_{}.pdf", level));
+            let res = compress_pdf(
+                input.to_str().unwrap(),
+                &CompressionOptions {
+                    level,
+                    output_path: output.to_str().unwrap().to_string(),
+                },
+            )
+            .expect("PDF 압축 실패");
+
+            assert!(
+                res.compressed_size <= original_size,
+                "압축 결과가 원본보다 커졌습니다 (level {}): {} > {}",
+                level,
+                res.compressed_size,
+                original_size
+            );
+            assert_eq!(res.compressed_size, fs::metadata(&output).unwrap().len());
+        }
 
         let _ = fs::remove_dir_all(tmp_dir);
     }
@@ -346,7 +382,7 @@ mod tests {
         let out_doc = Document::load(output.to_str().unwrap()).unwrap();
         let pages = out_doc.get_pages();
         let page_id = pages.get(&1).unwrap();
-        let content = out_doc.get_page_content(*page_id).unwrap();
+        let content = out_doc.get_page_content(*page_id);
         let content_str = String::from_utf8_lossy(&content);
         assert!(
             !content_str.contains("SECRET_CODE_9876"),
