@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { PdfDocManager, PageDimensions } from '../utils/pdfRenderer';
+import type { PdfDocManager, PageDimensions } from '../utils/pdfRenderer';
 import { RedactionOverlay } from './RedactionOverlay';
 import { RedactionItem, RedactionMode } from '../types';
 import { Loader2, FileUp } from 'lucide-react';

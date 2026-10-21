@@ -1,24 +1,41 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { Navbar, ActiveTab } from './components/Navbar';
 import { Toolbar } from './components/Toolbar';
 import { PdfViewer } from './components/PdfViewer';
 import { RedactionSidebar } from './components/RedactionSidebar';
-import { PageManagerTab } from './components/PageManagerTab';
-import { AboutTab } from './components/AboutTab';
-import { PdfDocManager } from './utils/pdfRenderer';
+import type { PdfDocManager } from './utils/pdfRenderer';
 import { RedactionItem, RedactionMode, LoadedPdf } from './types';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
-import { CompressModal } from './components/CompressModal';
+
+// Load the heavy PDF engine and secondary tabs only when the user needs them.
+const PageManagerTab = lazy(() =>
+  import('./components/PageManagerTab').then((m) => ({ default: m.PageManagerTab }))
+);
+const AboutTab = lazy(() =>
+  import('./components/AboutTab').then((m) => ({ default: m.AboutTab }))
+);
+const CompressModal = lazy(() =>
+  import('./components/CompressModal').then((m) => ({ default: m.CompressModal }))
+);
 
 export default function App() {
   const [isDark, setIsDark] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('viewer');
+  const [organizerMounted, setOrganizerMounted] = useState(false);
 
   // PDF Viewer State
   const [loadedPdf, setLoadedPdf] = useState<LoadedPdf | null>(null);
-  const docManagerRef = useRef<PdfDocManager>(new PdfDocManager());
+  const docManagerRef = useRef<PdfDocManager | null>(null);
+
+  const getDocManager = useCallback(async () => {
+    if (!docManagerRef.current) {
+      const { PdfDocManager } = await import('./utils/pdfRenderer');
+      docManagerRef.current = new PdfDocManager();
+    }
+    return docManagerRef.current;
+  }, []);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [scale, setScale] = useState(1.0);
@@ -40,6 +57,11 @@ export default function App() {
     }
   }, [isDark]);
 
+  // Mount the organizer tab on first use, then keep its state.
+  useEffect(() => {
+    if (activeTab === 'organizer') setOrganizerMounted(true);
+  }, [activeTab]);
+
   // Open PDF file handler
   const handleOpenFile = useCallback(async () => {
     try {
@@ -51,7 +73,8 @@ export default function App() {
       const targetPath = selected;
 
       const info: any = await invoke('read_pdf_file', { path: targetPath });
-      const pages = await docManagerRef.current.loadFromBase64(info.base64_data);
+      const manager = await getDocManager();
+      const pages = await manager.loadFromBase64(info.base64_data);
 
       setLoadedPdf({
         filePath: info.file_path,
@@ -77,7 +100,7 @@ export default function App() {
         message: `PDF 열기 실패: ${err?.toString() || '알 수 없는 오류'}`,
       });
     }
-  }, []);
+  }, [getDocManager]);
 
   // Save redacted PDF with True High-Resolution Flattening
   const handleSaveFile = useCallback(async () => {
@@ -103,10 +126,11 @@ export default function App() {
         height_pts: number;
       }> = [];
 
-      if (docManagerRef.current && uniqueRedactedPages.length > 0) {
+      const manager = docManagerRef.current;
+      if (manager && uniqueRedactedPages.length > 0) {
         for (const pageNum of uniqueRedactedPages) {
           const pageRedactions = redactions.filter((r) => r.page === pageNum);
-          const flResult = await docManagerRef.current.renderFlattenedRedactedPage(pageNum, pageRedactions, 2.0);
+          const flResult = await manager.renderFlattenedRedactedPage(pageNum, pageRedactions, 2.0);
           flattenedPages.push({
             page: pageNum,
             image_data: flResult.imageData,
@@ -155,7 +179,8 @@ export default function App() {
     setTotalPages(1);
     setCurrentPage(1);
     setRedactions([]);
-    docManagerRef.current.destroy();
+    docManagerRef.current?.destroy();
+    docManagerRef.current = null;
     setNotification({
       type: 'success',
       message: '열려 있던 PDF 문서를 닫았습니다. 새로운 PDF 파일을 열어주세요.',
@@ -182,10 +207,11 @@ export default function App() {
         height_pts: number;
       }> = [];
 
-      if (docManagerRef.current && uniqueRedactedPages.length > 0) {
+      const manager = docManagerRef.current;
+      if (manager && uniqueRedactedPages.length > 0) {
         for (const pageNum of uniqueRedactedPages) {
           const pageRedactions = redactions.filter((r) => r.page === pageNum);
-          const flResult = await docManagerRef.current.renderFlattenedRedactedPage(pageNum, pageRedactions, 2.0);
+          const flResult = await manager.renderFlattenedRedactedPage(pageNum, pageRedactions, 2.0);
           flattenedPages.push({
             page: pageNum,
             image_data: flResult.imageData,
@@ -372,42 +398,64 @@ export default function App() {
         </div>
       </div>
 
-      <div className={`flex-1 flex flex-col min-h-0 ${activeTab === 'organizer' ? '' : 'hidden'}`}>
-        <PageManagerTab />
-      </div>
+      {organizerMounted && (
+        <div className={`flex-1 flex flex-col min-h-0 ${activeTab === 'organizer' ? '' : 'hidden'}`}>
+          <Suspense
+            fallback={
+              <div className="flex-1 flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                페이지 관리 도구를 불러오는 중...
+              </div>
+            }
+          >
+            <PageManagerTab />
+          </Suspense>
+        </div>
+      )}
 
-      <div className={`flex-1 flex flex-col min-h-0 ${activeTab === 'about' ? '' : 'hidden'}`}>
-        <AboutTab />
-      </div>
+      {activeTab === 'about' && (
+        <div className="flex-1 flex flex-col min-h-0">
+          <Suspense
+            fallback={
+              <div className="flex-1 flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                정보 화면을 불러오는 중...
+              </div>
+            }
+          >
+            <AboutTab />
+          </Suspense>
+        </div>
+      )}
 
 
-      {loadedPdf && (
-        <CompressModal
-          open={compressOpen}
-          inputPath={loadedPdf.filePath}
-          inputName={loadedPdf.fileName}
-          inputSize={loadedPdf.fileSize}
-          redactionsCount={redactions.length}
-          onCompress={handleExecuteCompress}
-          onClose={() => setCompressOpen(false)}
-          onDone={(r) => {
-            setCompressOpen(false);
-            const fmt = (bytes: number) => {
-              if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + ' MB';
-              if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
-              return bytes + ' B';
-            };
-            const prefix = redactions.length > 0 ? '가림 처리 및 ' : '';
-            const msg =
-              r.reduction_percent > 0
-                ? `${prefix}용량 최적화 완료: ${fmt(r.original_size)} → ${fmt(r.compressed_size)} (${r.reduction_percent.toFixed(1)}% 절감)`
-                : `${prefix}용량 최적화 완료: 이미 최적화된 파일입니다 (${fmt(r.compressed_size)}).`;
-            setNotification({
-              type: 'success',
-              message: `${msg}\n${r.output_path}`,
-            });
-          }}
-        />
+      {loadedPdf && compressOpen && (
+        <Suspense fallback={null}>
+          <CompressModal
+            open={compressOpen}
+            inputPath={loadedPdf.filePath}
+            inputName={loadedPdf.fileName}
+            inputSize={loadedPdf.fileSize}
+            redactionsCount={redactions.length}
+            onCompress={handleExecuteCompress}
+            onClose={() => setCompressOpen(false)}
+            onDone={(r) => {
+              setCompressOpen(false);
+              const fmt = (bytes: number) => {
+                if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + ' MB';
+                if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
+                return bytes + ' B';
+              };
+              const prefix = redactions.length > 0 ? '가림 처리 및 ' : '';
+              const msg =
+                r.reduction_percent > 0
+                  ? `${prefix}용량 최적화 완료: ${fmt(r.original_size)} → ${fmt(r.compressed_size)} (${r.reduction_percent.toFixed(1)}% 절감)`
+                  : `${prefix}용량 최적화 완료: 이미 최적화된 파일입니다 (${fmt(r.compressed_size)}).`;
+              setNotification({
+                type: 'success',
+                message: `${msg}\n${r.output_path}`,
+              });
+            }}
+          />
+        </Suspense>
       )}
 
 

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { RedactionItem, RedactionMode } from '../types';
 import { createMosaicImageDataUrl } from '../utils/mosaicFilter';
-import { Trash2 } from 'lucide-react';
+import { Move, Trash2 } from 'lucide-react';
 
 type ResizeDir = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
 
@@ -315,12 +315,24 @@ export const RedactionOverlay: React.FC<RedactionOverlayProps> = ({
         const width = r.normWidth * viewportWidth;
         const height = r.normHeight * viewportHeight;
         const selected = isSelected(r.id);
+        const moving = interactionType === 'move' && activeId === r.id;
+        const styleName = r.style === 'mosaic' ? '모자이크' : r.style === 'blackout' ? '블랙아웃' : '화이트아웃';
 
         return (
           <div
             key={r.id}
-            className={`absolute z-10 select-none shadow-sm redaction-item group ${
-              selected ? 'ring-2 ring-sky-500 ring-offset-1 bg-sky-500/10' : ''
+            className={`absolute z-10 select-none shadow-sm redaction-item group transition-shadow ${
+              selected
+                ? 'ring-2 ring-sky-500 ring-offset-1 bg-sky-500/10'
+                : isInteractive
+                  ? 'hover:ring-1 hover:ring-sky-400 hover:shadow-md'
+                  : ''
+            } ${
+              isInteractive
+                ? moving
+                  ? 'cursor-grabbing'
+                  : 'cursor-move'
+                : 'cursor-default'
             }`}
             style={{
               left: `${left}px`,
@@ -328,6 +340,7 @@ export const RedactionOverlay: React.FC<RedactionOverlayProps> = ({
               width: `${width}px`,
               height: `${height}px`,
             }}
+            title={`${styleName}: 끌어서 이동, 모서리를 끌어 크기 조절`}
             onPointerDown={(e) => handleItemPointerDown(e, r.id)}
           >
             {/* Redaction content */}
@@ -377,17 +390,16 @@ export const RedactionOverlay: React.FC<RedactionOverlayProps> = ({
               />
             ))}
 
-            {/* Label and delete button on hover */}
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-7 right-0 flex items-center gap-1 bg-gray-900/90 text-white text-[10px] px-1.5 py-0.5 rounded shadow-lg z-20 pointer-events-auto">
-              <span className="font-semibold capitalize">
-                {r.style === 'mosaic' ? '모자이크' : r.style === 'blackout' ? '블랙아웃' : '화이트아웃'}
-              </span>
+            {/* Move hint, label, and delete button on hover */}
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-7 right-0 flex items-center gap-1 bg-gray-900/90 text-white text-[10px] px-1.5 py-0.5 rounded shadow-lg z-20 pointer-events-auto cursor-move">
+              <Move className="w-3 h-3 text-sky-300" />
+              <span className="font-semibold capitalize">{styleName}</span>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onRemoveRedaction(r.id);
                 }}
-                className="hover:text-red-400 p-0.5 rounded"
+                className="hover:text-red-400 p-0.5 rounded cursor-pointer"
                 title="가림 삭제"
               >
                 <Trash2 className="w-3 h-3" />
