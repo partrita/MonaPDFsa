@@ -7,7 +7,7 @@ import { PdfViewer } from './components/PdfViewer';
 import { RedactionSidebar } from './components/RedactionSidebar';
 import type { PdfDocManager } from './utils/pdfRenderer';
 import { RedactionItem, RedactionMode, LoadedPdf } from './types';
-import { CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { Toast } from './components/Toast';
 
 // Load the heavy PDF engine and secondary tabs only when the user needs them.
 const PageManagerTab = lazy(() =>
@@ -461,24 +461,11 @@ export default function App() {
 
       {/* Floating Notification Toast */}
       {notification && (
-        <div className="fixed bottom-5 right-5 z-50 max-w-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-xl shadow-2xl flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2 duration-200 select-none">
-          {notification.type === 'success' ? (
-            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-          ) : (
-            <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-          )}
-          <div className="flex-1 text-xs">
-            <p className="font-semibold whitespace-pre-line text-gray-900 dark:text-gray-100">
-              {notification.message}
-            </p>
-          </div>
-          <button
-            onClick={() => setNotification(null)}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        <Toast
+          type={notification.type}
+          message={notification.message}
+          onClose={() => setNotification(null)}
+        />
       )}
     </div>
   );

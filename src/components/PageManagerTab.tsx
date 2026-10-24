@@ -3,6 +3,7 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { PageItem } from '../types';
 import { generateThumbnailsBatch } from '../utils/pdfRenderer';
+import { Toast } from './Toast';
 import {
   LayoutGrid,
   RotateCw,
@@ -10,15 +11,12 @@ import {
   Trash2,
   Scissors,
   Download,
-  CheckCircle2,
-  AlertCircle,
   Loader2,
   FilePlus,
   ArrowLeftRight,
   GripVertical,
   ChevronLeft,
   ChevronRight,
-  X,
 } from 'lucide-react';
 
 interface PageManagerTabProps {
@@ -46,15 +44,6 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
     startY: number;
     active: boolean;
   } | null>(null);
-
-  // Auto-dismiss statusMessage after 4.5 seconds
-  useEffect(() => {
-    if (!statusMessage) return;
-    const timer = setTimeout(() => {
-      setStatusMessage(null);
-    }, 4500);
-    return () => clearTimeout(timer);
-  }, [statusMessage]);
 
   // Keep latest pages for window mouse handlers.
   useEffect(() => {
@@ -567,29 +556,12 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
 
       {/* Floating Status Notification Toast */}
       {statusMessage && (
-        <div className="fixed bottom-5 right-5 z-50 max-w-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-xl shadow-2xl flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2 duration-200 select-none">
-          {statusMessage.type === 'success' ? (
-            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-          ) : (
-            <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-          )}
-          <div className="flex-1 text-xs">
-            <p className="font-semibold whitespace-pre-line text-gray-900 dark:text-gray-100">
-              {statusMessage.text}
-            </p>
-            {statusMessage.path && (
-              <p className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 mt-1 break-all">
-                저장 경로: {statusMessage.path}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={() => setStatusMessage(null)}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        <Toast
+          type={statusMessage.type}
+          message={statusMessage.text}
+          detail={statusMessage.path}
+          onClose={() => setStatusMessage(null)}
+        />
       )}
 
       {/* Main Thumbnail Workspace Area */}
