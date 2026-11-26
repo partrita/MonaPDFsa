@@ -170,6 +170,11 @@ describe('MonaPDFsa Unit & Integration Tests', () => {
       assert.equal(groups.length, 2);
       assert.equal(groups[0].length, 2); // p1, p2
       assert.equal(groups[1].length, 2); // p3, p4
+
+      // 분할 파일은 원본 파일명에 번호를 붙여 자동 저장한다.
+      const baseName = 'document.pdf'.replace(/\.[^./\\]+$/, '');
+      const fileNames = groups.map((_, i) => `${baseName}_${i + 1}.pdf`);
+      assert.deepEqual(fileNames, ['document_1.pdf', 'document_2.pdf']);
     });
   });
 

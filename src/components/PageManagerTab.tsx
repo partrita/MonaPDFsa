@@ -394,16 +394,11 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
     }
   };
 
-  // Export split PDFs by break points.
+  // Split all marked break points into numbered files in the chosen folder.
   const handleExportSplitByBreaks = async () => {
     if (pages.length === 0) return;
 
     try {
-      const defaultDir = pages[0].sourceFilePath.substring(
-        0,
-        Math.max(pages[0].sourceFilePath.lastIndexOf('/'), pages[0].sourceFilePath.lastIndexOf('\\'))
-      );
-
       // Split pages into groups by break flag.
       const groups: PageItem[][] = [];
       let currentGroup: PageItem[] = [];
@@ -424,35 +419,35 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
         return;
       }
 
+      const outputDir = await open({
+        directory: true,
+        multiple: false,
+        title: '분할 PDF 파일을 저장할 폴더 선택',
+      });
+      if (!outputDir || Array.isArray(outputDir)) return;
+
       setIsExporting(true);
       setStatusMessage(null);
 
-      const savedPaths: string[] = [];
-      const timestamp = Date.now();
-
-      for (let gIdx = 0; gIdx < groups.length; gIdx++) {
-        const group = groups[gIdx];
-        const outName = `split_part_${gIdx + 1}_of_${groups.length}_${timestamp}.pdf`;
-        const outPath = `${defaultDir}/${outName}`;
-
-        const pageSpecs = group.map((p) => ({
+      const baseName = (pages[0].sourceFileName || 'document.pdf').replace(/\.[^./\\]+$/, '');
+      const groupSpecs = groups.map((group) =>
+        group.map((p) => ({
           source_path: p.sourceFilePath,
           page_number: p.sourcePageIndex,
           rotation: p.rotation,
-        }));
+        }))
+      );
 
-        await invoke('cmd_pdf_organize_and_export', {
-          pages: pageSpecs,
-          outputPath: outPath,
-        });
-
-        savedPaths.push(outPath);
-      }
+      const savedPaths: string[] = await invoke('cmd_pdf_split_all', {
+        groups: groupSpecs,
+        outputDir,
+        baseName,
+      });
 
       setIsExporting(false);
       setStatusMessage({
         type: 'success',
-        text: `성공적으로 ${groups.length}개의 분할 PDF 문서가 저장되었습니다! (저장 위치: ${defaultDir})`,
+        text: `성공적으로 ${groups.length}개의 분할 PDF 문서가 저장되었습니다! (저장 위치: ${outputDir})`,
         path: savedPaths[0],
       });
     } catch (err: any) {
@@ -534,8 +529,8 @@ export const PageManagerTab: React.FC<PageManagerTabProps> = () => {
                   disabled={isExporting}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-foam-600 hover:bg-foam-700 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:border-gray-200 dark:disabled:border-gray-700 text-white font-semibold rounded-lg text-xs shadow-sm shadow-foam-600/20 transition active:scale-95 whitespace-nowrap border border-foam-700/30 disabled:cursor-not-allowed"
                 >
-                  <Scissors className="w-3.5 h-3.5" />
-                  <span>분할 지점 기준 저장 ({splitBreakCount + 1}개 파일)</span>
+                  {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scissors className="w-3.5 h-3.5" />}
+                  <span>모두 분할 ({splitBreakCount + 1}개 파일)</span>
                 </button>
               )}
 

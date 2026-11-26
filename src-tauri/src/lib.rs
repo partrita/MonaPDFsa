@@ -13,6 +13,7 @@ pub fn run() {
             commands::read_pdf_file,
             commands::cmd_pdf_merge,
             commands::cmd_pdf_split,
+            commands::cmd_pdf_split_all,
             commands::cmd_pdf_organize_and_export,
             commands::cmd_pdf_apply_redactions,
             commands::cmd_compress_pdf,

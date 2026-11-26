@@ -2,7 +2,7 @@ use base64::prelude::*;
 use lopdf::Document;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use monapdfsa_core::pdf::compress::{
     compress_pdf_with_redactions, CompressionOptions, CompressionResult,
@@ -98,6 +98,60 @@ pub fn cmd_pdf_organize_and_export(
     organize_and_export_pages(&pages, &output_path)
 }
 
+/// 분할 지점으로 나눈 페이지 그룹들을 선택한 폴더에 번호가 붙은 PDF 파일로 저장하는 Tauri 커맨드
+#[tauri::command]
+pub fn cmd_pdf_split_all(
+    groups: Vec<Vec<PageOrganizeSpec>>,
+    output_dir: String,
+    base_name: String,
+) -> Result<Vec<String>, String> {
+    if groups.len() < 2 {
+        return Err("분할할 페이지 그룹이 2개 이상이어야 합니다.".to_string());
+    }
+    for (idx, group) in groups.iter().enumerate() {
+        if group.is_empty() {
+            return Err(format!("{}번째 분할 그룹이 비어 있습니다.", idx + 1));
+        }
+    }
+
+    let dir = Path::new(&output_dir);
+    if !dir.is_dir() {
+        return Err(format!("저장 폴더가 존재하지 않습니다: {}", output_dir));
+    }
+
+    if base_name.trim().is_empty() {
+        return Err("분할 파일 이름이 비어 있습니다.".to_string());
+    }
+    let stem = Path::new(&base_name)
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "document".to_string());
+
+    let mut saved = Vec::with_capacity(groups.len());
+    let mut number = 1u32;
+    for group in &groups {
+        let (path, next_number) = next_split_output_path(dir, &stem, number);
+        let output_path = path.to_string_lossy().to_string();
+        organize_and_export_pages(group, &output_path)?;
+        saved.push(output_path);
+        number = next_number;
+    }
+
+    Ok(saved)
+}
+
+/// 분할 파일 경로를 만든다. 같은 이름의 파일이 있으면 다음 번호로 건너뛴다.
+fn next_split_output_path(dir: &Path, stem: &str, start: u32) -> (PathBuf, u32) {
+    let mut number = start;
+    loop {
+        let candidate = dir.join(format!("{}_{}.pdf", stem, number));
+        if !candidate.exists() {
+            return (candidate, number + 1);
+        }
+        number += 1;
+    }
+}
+
 
 /// 모자이크, 블랙아웃, 화이트아웃 가림 영역을 적용하고 원본 텍스트를 삭제한 영구 가림 PDF를 저장하는 Tauri 커맨드
 #[tauri::command]
@@ -152,4 +206,29 @@ pub fn save_file_bytes(output_path: String, base64_data: String) -> Result<Strin
         .map_err(|e| format!("파일 쓰기 실패 '{}': {}", output_path, e))?;
 
     Ok(output_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::next_split_output_path;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn split_output_names_use_numbers_and_skip_existing_files() {
+        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let dir = std::env::temp_dir().join(format!("monapdfsa_split_{}_{}", std::process::id(), unique));
+        fs::create_dir_all(&dir).unwrap();
+
+        let (first, next) = next_split_output_path(&dir, "document", 1);
+        assert_eq!(first.file_name().unwrap().to_string_lossy(), "document_1.pdf");
+        assert_eq!(next, 2);
+
+        fs::write(&first, b"existing").unwrap();
+        let (second, next) = next_split_output_path(&dir, "document", next);
+        assert_eq!(second.file_name().unwrap().to_string_lossy(), "document_2.pdf");
+        assert_eq!(next, 3);
+
+        fs::remove_dir_all(&dir).unwrap();
+    }
 }
