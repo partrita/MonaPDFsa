@@ -37,7 +37,7 @@ Figure 2 shows blackout mode. The black box hides text. The right panel lists al
 
 <img src="screenshot/pdf_manager.png" alt="Page manager" width="800">
 
-Figure 3 shows page manager. Drag cards to change order. Use icons to rotate, split, or delete. Press the blue button to save merged PDF.
+Figure 3 shows page manager. Drag cards to change order. Use icons to rotate, split, or delete. Set split points with the scissors icon and press "모두 분할" to save numbered PDF files. Press the blue button to save one merged PDF.
 
 ### 4. Size optimizer
 
@@ -75,8 +75,21 @@ xattr -d com.apple.quarantine MonaPDFsa.dmg
 | 다중 PDF & 이미지 병합 | PDF뿐만 아니라 JPG, PNG 이미지 파일을 추가하여 단일 PDF로 통합     | ✅ 완료 |
 | 페이지 회전 (Rotate)   | 시계/반시계 방향으로 개별 또는 전체 페이지 90° 회전                | ✅ 완료 |
 | 페이지 삭제 (Delete)   | 불필요한 페이지를 원클릭으로 제거                                  | ✅ 완료 |
-| 분할 지점 설정 (Split) | 카드 하단 ✂️ 아이콘으로 분할 구분점을 지정하고 '모두 분할'을 누르면 선택한 폴더에 원본 파일명 + 번호로 일괄 저장 | ✅ 완료 |
+| 분할 지점 설정 (Split) | 카드 하단 ✂️ 아이콘으로 분할 구분점을 지정하고 '모두 분할'로 번호가 붙은 여러 PDF 일괄 저장 | ✅ 완료 |
 | 원스톱 병합 내보내기   | 재배치된 상태 그대로 단일 PDF 문서로 즉시 저장                     | ✅ 완료 |
+
+### ✂️ PDF 분할 저장 (Split & Save)
+
+페이지 관리 화면에서 분할 지점을 여러 곳에 표시한 뒤, 한 번에 PDF 파일로 나누어 저장할 수 있습니다.
+
+1. **파일 추가**로 PDF를 불러옵니다. 여러 PDF와 이미지를 함께 추가할 수 있습니다.
+2. 분할할 위치의 페이지 카드 아래에 있는 ✂️ 아이콘을 클릭합니다. 그 페이지 **바로 뒤**가 분할 지점이 되며, 썸네일에 `여기서 분할` 배지가 표시됩니다.
+3. 분할 지점을 모두 표시하면 툴바에 **모두 분할 (N개 파일)** 버튼이 나타납니다. 이 버튼을 누릅니다.
+4. 저장할 폴더를 선택하면 각 구간이 별도 PDF 파일로 자동 저장됩니다. 저장 폴더는 원본 파일이 있는 곳이 아니라 직접 선택한 곳입니다.
+
+파일 이름은 첫 번째 페이지의 원본 파일 이름에 순번을 붙인 형식입니다. 예를 들어 `report.pdf`를 3구간으로 나누면 `report_1.pdf`, `report_2.pdf`, `report_3.pdf`가 만들어집니다. 같은 이름의 파일이 이미 있으면 번호를 건너뛰어 기존 파일을 덮어쓰지 않습니다. 각 파일에는 현재 페이지 순서와 회전 상태가 반영됩니다.
+
+> 분할 지점이 하나도 없으면 **모두 분할** 버튼이 표시되지 않습니다. 분할 지점은 카드의 ✂️ 아이콘을 다시 클릭하면 해제할 수 있습니다.
 
 ### 🔲 영구 가림 처리 (Redaction & Text Sanitization)
 
