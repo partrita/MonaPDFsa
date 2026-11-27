@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.2.2"
+version = "0.2.3"
 description = "A Tauri App for PDF tool"
 authors = ["Taeyoon Kim <deepthough@postech.ac.kr>"]
 license = "MIT"
